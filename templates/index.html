@@ -28,13 +28,20 @@
                     <div class="music-title" id="music-title-display">No music playing</div>
                     <div class="music-artist" id="music-artist-display">Say "Play [song]" or use search</div>
                 </div>
+                <button class="music-btn" id="music-search-toggle" title="Search"><i class="fas fa-search"></i></button>
                 <div class="music-controls">
+                    <button class="music-btn" id="music-shuffle-btn" title="Shuffle"><i class="fas fa-shuffle"></i></button>
                     <button class="music-btn" id="music-prev-btn"><i class="fas fa-backward-step"></i></button>
                     <button class="music-btn music-btn-play" id="music-play-btn"><i class="fas fa-play"></i></button>
                     <button class="music-btn" id="music-next-btn"><i class="fas fa-forward-step"></i></button>
-                    <button class="music-btn" id="music-search-toggle"><i class="fas fa-search"></i></button>
+                    <button class="music-btn" id="music-repeat-btn" title="Repeat"><i class="fas fa-repeat"></i></button>
                 </div>
             </div>
+            <div class="music-progress-row">
+                <span class="music-time" id="music-time-display"></span>
+                <div class="music-progress"><div class="music-progress-fill" id="music-progress-bar"></div></div>
+            </div>
+            <div class="music-up-next" id="music-up-next" style="display:none;"></div>
             <div class="music-expanded" id="music-search-panel" style="display:none;">
                 <div class="music-search-bar">
                     <i class="fas fa-search"></i>
@@ -43,7 +50,6 @@
                 </div>
                 <div id="music-search-results"></div>
             </div>
-            <div class="music-progress"><div class="music-progress-fill" id="music-progress-bar"></div></div>
         </div>
 
         <div id="stock-ticker" style="display:none;">
