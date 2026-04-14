@@ -1,0 +1,15 @@
+{
+    "photos": {"path": "", "includeSubfolders": true, "scanInterval": 30},
+    "slideshow": {"intervalMin": 0, "intervalSec": 15, "transition": "fade", "shuffle": true, "pairPortraits": true, "muteVideo": true},
+    "clock": {"show": true, "position": "tl", "fontFamily": "Segoe UI", "fontSize": 48, "fontWeight": "200", "color": "#ffffff", "format": "12", "italic": false, "showSeconds": false, "showDate": true, "dateFontSize": 16, "dateFormat": "long"},
+    "weather": {"show": true, "source": "openmeteo", "apiKey": "", "position": "bl", "size": "normal", "unit": "f", "defaultView": "hourly", "city": "Seattle, WA", "opacity": 70, "scale": 100, "fontScale": 100},
+    "commute": {"commute1": {"enabled": false, "label": "", "from": "", "to": "", "schedule": "morning"}, "commute2": {"enabled": false, "label": "", "from": "", "to": "", "schedule": "morning"}, "googleMapsApiKey": "", "position": "tr"},
+    "news": {"show": true, "style": "ticker", "position": "bottom", "height": 42, "fontSize": 14, "speed": "150", "font": "Outfit", "feeds": ["https://feeds.a.dj.com/rss/WSJcomUSBusiness.xml", "https://feeds.a.dj.com/rss/RSSWorldNews.xml"], "refreshInterval": 15},
+    "stocks": {"show": false, "height": 36, "fontSize": 12, "feeds": []},
+    "music": {"show": false, "position": "br", "youtubeApiKey": ""},
+    "calendar": {"connected": false, "daysToShow": 3, "embedUrl": "", "zoom": 100, "agendaFontSize": 14},
+    "notes": {"overlayFont": "Segoe UI", "overlayFontSize": 14, "overlayColor": "#ffffff", "overlayWeight": "400", "overlayItalic": false, "overlayWidth": 280, "overlayOpacity": 50, "overlayPosition": "cr"},
+    "voice": {"enabled": false, "geminiApiKey": "", "model": "gemini-2.5-flash-lite", "warmTimeout": 15},
+    "display": {"showPhotoInfo": false, "showProgressBar": false, "overlayTheme": "auto", "autoHide": false, "autoHideMin": 0, "autoHideSec": 15, "autoCycle": false, "cycleShowMin": 0, "cycleShowSec": 10, "cycleHideMin": 5, "cycleHideSec": 0, "burnInProtection": true, "screenSchedule": "always", "weekdayOn": "6:30 AM", "weekdayOff": "11:00 PM", "weekendOn": "8:00 AM", "weekendOff": "11:30 PM"},
+    "effects": {"blur": 60, "brightness": 30, "saturation": 130, "fade": true, "fadeIntensity": 85, "seam": 60}
+}

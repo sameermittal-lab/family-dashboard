@@ -1,0 +1,20 @@
+# Secrets & credentials
+token.json
+credentials.json
+oauth_state.json
+
+# User data
+notes.json
+
+# Runtime
+cache/
+logs/
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config contains API keys — use config.example.json as template
+config.json

@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Family Dashboard — Documentation</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #f8f9fa; color: #333; line-height: 1.7; }
+.container { max-width: 900px; margin: 0 auto; padding: 40px 24px; }
+h1 { font-size: 32px; margin-bottom: 8px; color: #1a1a2e; }
+h2 { font-size: 24px; margin: 40px 0 16px; color: #1a1a2e; border-bottom: 2px solid #4285f4; padding-bottom: 8px; }
+h3 { font-size: 18px; margin: 24px 0 12px; color: #333; }
+p { margin-bottom: 12px; }
+.subtitle { color: #666; font-size: 16px; margin-bottom: 32px; }
+code { background: #e8eaed; padding: 2px 6px; border-radius: 4px; font-family: Consolas, monospace; font-size: 14px; }
+pre { background: #1a1a2e; color: #e8eaed; padding: 16px 20px; border-radius: 8px; overflow-x: auto; margin: 12px 0 20px; font-size: 13px; line-height: 1.5; }
+pre code { background: none; padding: 0; }
+table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; }
+th, td { padding: 10px 14px; text-align: left; border: 1px solid #dee2e6; font-size: 14px; }
+th { background: #4285f4; color: #fff; font-weight: 600; }
+tr:nth-child(even) { background: #f1f3f5; }
+ul, ol { margin: 8px 0 16px 24px; }
+li { margin-bottom: 6px; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+.badge-free { background: #d4edda; color: #155724; }
+.badge-optional { background: #fff3cd; color: #856404; }
+.badge-required { background: #f8d7da; color: #721c24; }
+.note { background: #e3f2fd; border-left: 4px solid #4285f4; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 12px 0 20px; }
+.warning { background: #fff8e1; border-left: 4px solid #ffc107; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 12px 0 20px; }
+.toc { background: #fff; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px 24px; margin: 20px 0 32px; }
+.toc a { color: #4285f4; text-decoration: none; }
+.toc a:hover { text-decoration: underline; }
+.toc ul { list-style: none; margin: 0; padding: 0; }
+.toc li { padding: 4px 0; }
+.toc li li { padding-left: 20px; }
+.feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
+.feature-card { background: #fff; border: 1px solid #dee2e6; border-radius: 8px; padding: 14px 16px; }
+.feature-card strong { display: block; margin-bottom: 4px; }
+.feature-card small { color: #666; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Family Dashboard</h1>
+<p class="subtitle">A wall-mounted photo frame and family hub — photos, calendar, weather, news, music, notes, and commute times in one beautiful display.</p>
+
+<div class="toc">
+<strong>Table of Contents</strong>
+<ul>
+<li><a href="#overview">1. Overview</a></li>
+<li><a href="#features">2. Features</a></li>
+<li><a href="#prerequisites">3. Prerequisites</a></li>
+<li><a href="#installation">4. Installation</a></li>
+<li><a href="#google-setup">5. Google Cloud Setup</a></li>
+<li><a href="#configuration">6. Configuration Reference</a></li>
+<li><a href="#architecture">7. Architecture</a></li>
+<li><a href="#api">8. API Endpoints</a></li>
+<li><a href="#troubleshooting">9. Troubleshooting</a></li>
+<li><a href="#keyboard">10. Keyboard Shortcuts</a></li>
+<li><a href="#voice">11. Voice Commands</a></li>
+<li><a href="#music">12. YouTube Music Player</a></li>
+<li><a href="#kiosk">13. Kiosk & Auto-Start Setup</a></li>
+<li><a href="#playback">14. Playback Controls & System Volume</a></li>
+<li><a href="#media">15. Media Support & Smart Scaling</a></li>
+<li><a href="#audio">16. Audio Priority System</a></li>
+<li><a href="#status">17. Service Status Dashboard</a></li>
+<li><a href="#remote">18. Remote Control (Phone)</a></li>
+</ul>
+</div>
+
+<h2 id="overview">1. Overview</h2>
+<p>Family Dashboard is a locally-hosted web application designed to run on a wall-mounted display. It combines a photo slideshow with useful family widgets — all controlled through an on-screen settings panel or a phone remote.</p>
+<p>The app runs as a Python Flask server on your local machine, serving a fullscreen web interface via Chrome. All data stays on your network — no cloud services required for core functionality.</p>
+
+<h2 id="features">2. Features</h2>
+<div class="feature-grid">
+<div class="feature-card"><strong>Photo Slideshow</strong><small>NAS/local photos, portrait pairing, face-centered cropping, HEIC/RAW/video support, configurable transitions</small></div>
+<div class="feature-card"><strong>Clock & Date</strong><small>Customizable font, size, color, position, 12/24h format, multiple date formats</small></div>
+<div class="feature-card"><strong>Weather</strong><small>Open-Meteo (free) or OpenWeatherMap, hourly/daily/weekly views, auto-detect location</small></div>
+<div class="feature-card"><strong>Google Calendar</strong><small>Agenda view (API), week/month views (Google embed), multiple calendars</small></div>
+<div class="feature-card"><strong>News Ticker</strong><small>RSS feeds, scrolling ticker or card overlay, configurable speed/size</small></div>
+<div class="feature-card"><strong>Stock Ticker</strong><small>Separate RSS-based ticker for market news</small></div>
+<div class="feature-card"><strong>Commute Times</strong><small>Two routes, Google Directions API, schedule-based visibility</small></div>
+<div class="feature-card"><strong>YouTube Music</strong><small>Embedded player with search, play/pause/skip, queue, voice-controlled</small></div>
+<div class="feature-card"><strong>Family Notes</strong><small>Sticky notes, color-coded, pin to overlay, remote posting from phone</small></div>
+<div class="feature-card"><strong>Virtual Keyboard</strong><small>On-screen QWERTY with emoji row for mouse-only operation</small></div>
+<div class="feature-card"><strong>Voice Commands</strong><small>Push-to-talk mic, controls music/calendar/weather/notes/slideshow via speech</small></div>
+<div class="feature-card"><strong>Remote Control</strong><small>Phone-friendly web page for posting notes and controlling the dashboard</small></div>
+<div class="feature-card"><strong>Auto-Start</strong><small>Windows startup script, Chrome kiosk mode, screen schedule</small></div>
+</div>
+
+<h2 id="prerequisites">3. Prerequisites</h2>
+<table>
+<tr><th>Requirement</th><th>Details</th><th>Status</th></tr>
+<tr><td>Python 3.10+</td><td>Download from <a href="https://python.org/downloads">python.org</a>. Check "Add to PATH" during install.</td><td><span class="badge badge-required">Required</span></td></tr>
+<tr><td>Chrome Browser</td><td>For kiosk mode display</td><td><span class="badge badge-required">Required</span></td></tr>
+<tr><td>Network Access</td><td>To NAS (if using network photos) and internet (for weather, news)</td><td><span class="badge badge-required">Required</span></td></tr>
+<tr><td>Google Cloud Project</td><td>For Calendar, Commute, YouTube search</td><td><span class="badge badge-optional">Optional</span></td></tr>
+</table>
+
+<h2 id="installation">4. Installation</h2>
+<h3>Step 1: Copy Files</h3>
+<p>Copy the entire <code>family-dashboard</code> folder to your Windows machine (e.g., <code>D:\family-dashboard</code>).</p>
+
+<h3>Step 2: Install Dependencies</h3>
+<pre><code>cd D:\family-dashboard
+py -m pip install -r requirements.txt</code></pre>
+
+<h3>Step 3: Run the App</h3>
+<pre><code>py app.py</code></pre>
+<p>Open Chrome and navigate to <code>http://localhost:5000</code>. Press <code>F11</code> for fullscreen.</p>
+
+<h3>Step 4: Configure</h3>
+<p>Click the gear icon (bottom-right, hover to reveal) to open Settings. Set your photo folder path and configure widgets.</p>
+
+<h3>Step 5: Auto-Start on Boot (Optional)</h3>
+<p>Double-click <code>setup.bat</code> to create a Windows startup shortcut. The app will launch automatically on login.</p>
+<p>Or use <code>start.bat</code> to manually launch the server + Chrome in kiosk mode.</p>
+
+<h3>Step 6: Remote Control</h3>
+<p>From any device on the same network, open <code>http://&lt;your-pc-ip&gt;:5000/remote</code> to access the phone remote.</p>
+
+<h2 id="google-setup">5. Google Cloud Setup</h2>
+<div class="note">Only needed for Calendar, Commute times, and YouTube Music search. Photos, weather, news, clock, and notes work without any Google setup.</div>
+
+<h3>5.1 Create a Google Cloud Project</h3>
+<ol>
+<li>Go to <a href="https://console.cloud.google.com">console.cloud.google.com</a></li>
+<li>Click the project dropdown → "New Project" → name it "Family Dashboard" → Create</li>
+</ol>
+
+<h3>5.2 Enable APIs</h3>
+<p>Go to <a href="https://console.cloud.google.com/apis/library">APIs & Services → Library</a> and enable:</p>
+<ul>
+<li>Google Calendar API</li>
+<li>Directions API</li>
+<li>YouTube Data API v3</li>
+<li>Places API (for address autocomplete)</li>
+</ul>
+
+<h3>5.3 Create an API Key</h3>
+<ol>
+<li>Go to <a href="https://console.cloud.google.com/apis/credentials">Credentials</a></li>
+<li>Click "Create Credentials" → "API Key"</li>
+<li>Copy the key — paste it in the app under Settings → Commute → Google Maps API Key</li>
+<li>Optional: restrict the key to only Directions, YouTube, and Places APIs</li>
+</ol>
+
+<h3>5.4 Create OAuth Credentials (for Calendar)</h3>
+<ol>
+<li>Go to Credentials → "Create Credentials" → "OAuth client ID"</li>
+<li>If prompted, configure the consent screen:
+    <ul>
+    <li>Choose "External" → Create</li>
+    <li>App name: "Family Dashboard"</li>
+    <li>Add your email as a test user under Audience</li>
+    </ul>
+</li>
+<li>Create OAuth client: Application type = "Web application"</li>
+<li>Add redirect URI: <code>http://localhost:5000/oauth/callback</code></li>
+<li>Download the JSON file → rename to <code>credentials.json</code> → place in <code>D:\family-dashboard\</code></li>
+</ol>
+
+<h3>5.5 Connect Calendar in the App</h3>
+<ol>
+<li>Open Settings → Google Calendar → click "Connect Calendar"</li>
+<li>Sign in with the Google account whose calendar you want to display</li>
+<li>Click "Advanced" → "Go to Family Dashboard (unsafe)" (normal for personal projects)</li>
+<li>Grant calendar read access → done</li>
+</ol>
+
+<h3>5.6 Calendar Embed (Week/Month Views)</h3>
+<ol>
+<li>Go to <a href="https://calendar.google.com/calendar/r/settings">Google Calendar Settings</a></li>
+<li>Click your calendar name under "Settings for my calendars"</li>
+<li>Scroll to "Integrate calendar" → copy the embed URL</li>
+<li>Paste in Settings → Google Calendar → "Week/Month Embed URL"</li>
+</ol>
+
+<h2 id="configuration">6. Configuration Reference</h2>
+<p>All settings are stored in <code>config.json</code> and can be changed via the Settings panel in the app. Changes auto-save.</p>
+
+<h3>Photos</h3>
+<table>
+<tr><th>Setting</th><th>Description</th><th>Default</th></tr>
+<tr><td>path</td><td>Folder path (local or UNC like <code>\\NAS\Photos</code>)</td><td>""</td></tr>
+<tr><td>includeSubfolders</td><td>Scan subdirectories</td><td>true</td></tr>
+<tr><td>scanInterval</td><td>Auto-scan interval in minutes (0 = off)</td><td>30</td></tr>
+</table>
+
+<h3>Slideshow</h3>
+<table>
+<tr><th>Setting</th><th>Description</th><th>Default</th></tr>
+<tr><td>intervalMin / intervalSec</td><td>Time between slides (MM:SS)</td><td>0:15</td></tr>
+<tr><td>transition</td><td>fade, slide, zoom (Ken Burns), none</td><td>fade</td></tr>
+<tr><td>shuffle</td><td>Randomize photo order</td><td>true</td></tr>
+<tr><td>pairPortraits</td><td>Show two portrait photos side-by-side</td><td>true</td></tr>
+<tr><td>muteVideo</td><td>Mute video audio</td><td>true</td></tr>
+</table>
+
+<h3>Clock & Date</h3>
+<table>
+<tr><th>Setting</th><th>Description</th><th>Default</th></tr>
+<tr><td>show</td><td>Show/hide clock overlay</td><td>true</td></tr>
+<tr><td>position</td><td>tl, tc, tr, bl, bc, br</td><td>tl</td></tr>
+<tr><td>fontFamily</td><td>Windows font name</td><td>Calibri</td></tr>
+<tr><td>fontSize</td><td>Time font size in pixels</td><td>69</td></tr>
+<tr><td>fontWeight</td><td>200 (thin) to 700 (bold)</td><td>700</td></tr>
+<tr><td>color</td><td>Hex color</td><td>#ffffff</td></tr>
+<tr><td>format</td><td>12 or 24 hour</td><td>12</td></tr>
+<tr><td>showSeconds</td><td>Display seconds</td><td>false</td></tr>
+<tr><td>showDate</td><td>Show date below time</td><td>true</td></tr>
+<tr><td>dateFontSize</td><td>Date font size in pixels</td><td>28</td></tr>
+<tr><td>dateFormat</td><td>long, medium, short</td><td>long</td></tr>
+</table>
+
+<h3>Weather</h3>
+<table>
+<tr><th>Setting</th><th>Description</th><th>Default</th></tr>
+<tr><td>show</td><td>Show/hide weather widget</td><td>true</td></tr>
+<tr><td>source</td><td>openmeteo (free) or openweather (API key)</td><td>openmeteo</td></tr>
+<tr><td>city</td><td>Location name</td><td>Bellevue, Washington</td></tr>
+<tr><td>unit</td><td>f (Fahrenheit) or c (Celsius)</td><td>f</td></tr>
+<tr><td>position</td><td>tl, tr, bl, br</td><td>bl</td></tr>
+<tr><td>opacity</td><td>Background opacity (20-100)</td><td>70</td></tr>
+</table>
+
+<h3>News</h3>
+<table>
+<tr><th>Setting</th><th>Description</th><th>Default</th></tr>
+<tr><td>show</td><td>Show/hide news</td><td>true</td></tr>
+<tr><td>style</td><td>ticker (scrolling) or cards (stacked)</td><td>ticker</td></tr>
+<tr><td>height</td><td>Ticker bar height in pixels</td><td>58</td></tr>
+<tr><td>fontSize</td><td>Headline font size in pixels</td><td>18</td></tr>
+<tr><td>speed</td><td>Scroll speed: 60 (slow), 40 (normal), 25 (fast), 15 (very fast)</td><td>40</td></tr>
+<tr><td>feeds</td><td>Array of RSS feed URLs</td><td>WSJ feeds</td></tr>
+<tr><td>refreshInterval</td><td>Minutes between feed refreshes</td><td>15</td></tr>
+</table>
+
+<h3>Commute</h3>
+<table>
+<tr><th>Setting</th><th>Description</th><th>Default</th></tr>
+<tr><td>googleMapsApiKey</td><td>Google Directions API key</td><td>""</td></tr>
+<tr><td>commute1/2.enabled</td><td>Show this commute</td><td>true</td></tr>
+<tr><td>commute1/2.label</td><td>Display name</td><td>""</td></tr>
+<tr><td>commute1/2.from/to</td><td>Origin and destination addresses</td><td>""</td></tr>
+<tr><td>commute1/2.schedule</td><td>always, morning, evening, both</td><td>morning</td></tr>
+</table>
+
+<h3>Display & Overlays</h3>
+<table>
+<tr><th>Setting</th><th>Description</th><th>Default</th></tr>
+<tr><td>showPhotoInfo</td><td>Show filename and count</td><td>false</td></tr>
+<tr><td>showProgressBar</td><td>Show slideshow progress bar</td><td>false</td></tr>
+<tr><td>autoHide</td><td>Hide overlays after idle</td><td>false</td></tr>
+<tr><td>autoCycle</td><td>Periodically show/hide overlays</td><td>false</td></tr>
+<tr><td>cycleShowMin/Sec</td><td>How long to show overlays</td><td>0:10</td></tr>
+<tr><td>cycleHideMin/Sec</td><td>How long to hide overlays</td><td>5:00</td></tr>
+<tr><td>burnInProtection</td><td>Slowly shift overlay positions</td><td>true</td></tr>
+<tr><td>screenSchedule</td><td>always or custom hours</td><td>custom</td></tr>
+<tr><td>weekdayOn/Off</td><td>Screen on/off times for weekdays</td><td>6:30 AM / 11:00 PM</td></tr>
+<tr><td>weekendOn/Off</td><td>Screen on/off times for weekends</td><td>8:00 AM / 11:30 PM</td></tr>
+</table>
+
+<h2 id="architecture">7. Architecture</h2>
+
+<h3>File Structure</h3>
+<pre><code>family-dashboard/
+├── app.py                  # Flask backend server
+├── config.json             # All settings (auto-saved)
+├── credentials.json        # Google OAuth credentials (you provide)
+├── token.json              # Google OAuth token (auto-generated)
+├── notes.json              # Saved notes (auto-generated)
+├── requirements.txt        # Python dependencies
+├── setup.bat               # Windows auto-start installer
+├── start.bat               # Manual launch script
+├── cache/
+│   ├── photo_manifest.json # Cached photo list with face data
+│   └── *.jpg               # Cached RAW/HEIC conversions
+├── static/
+│   ├── app.js              # Frontend application logic
+│   └── styles.css          # UI styles
+├── templates/
+│   ├── index.html          # Main dashboard page
+│   └── remote.html         # Phone remote control page
+└── docs/
+    └── documentation.html  # This file</code></pre>
+
+<h3>Data Flow</h3>
+<ol>
+<li><strong>Startup:</strong> Flask loads cached manifest → serves photos immediately → kicks off incremental scan in background</li>
+<li><strong>Photo Scan:</strong> Walks folder → compares against cache → only processes new/changed files → detects faces (OpenCV) → stores focus points → saves manifest</li>
+<li><strong>Photo Display:</strong> Browser requests <code>/api/photo/&lt;id&gt;</code> → Flask reads file from disk (NAS or local) → streams to browser. RAW/HEIC files are converted to JPEG and cached.</li>
+<li><strong>Slideshow:</strong> Frontend cycles through manifest, renders <code>&lt;img&gt;</code> or <code>&lt;video&gt;</code> elements with <code>object-fit: cover</code> and <code>object-position</code> based on face detection data.</li>
+<li><strong>Settings:</strong> Frontend reads/writes <code>/api/config</code> → Flask persists to <code>config.json</code> → changes apply live without page reload.</li>
+<li><strong>Weather:</strong> Backend fetches from Open-Meteo API every 10 minutes, caches response.</li>
+<li><strong>News:</strong> Backend fetches RSS feeds, parses with feedparser, shuffles articles from all sources.</li>
+<li><strong>Calendar:</strong> Agenda view uses Google Calendar API (OAuth). Week/month views use Google Calendar embed iframe.</li>
+</ol>
+
+<h3>Supported File Formats</h3>
+<table>
+<tr><th>Type</th><th>Extensions</th><th>Notes</th></tr>
+<tr><td>Images</td><td>.jpg, .jpeg, .png, .bmp, .gif, .webp, .tiff</td><td>Served directly</td></tr>
+<tr><td>RAW Photos</td><td>.arw, .cr2, .nef, .dng, .raf</td><td>Converted to JPEG, cached</td></tr>
+<tr><td>HEIC/HEIF</td><td>.heic, .heif</td><td>Converted to JPEG, cached</td></tr>
+<tr><td>Videos</td><td>.mp4, .mov, .avi, .mkv, .webm</td><td>Streamed directly, auto-advance on end</td></tr>
+</table>
+
+<h3>Face Detection</h3>
+<p>During photo scanning, OpenCV's Haar cascade face detector analyzes each image. If faces are found, the average center point is stored as <code>focusX</code> and <code>focusY</code> percentages. The frontend uses <code>object-position: X% Y%</code> to center the crop on faces instead of the image center. Photos without detected faces default to center crop (50%, 50%).</p>
+
+<h3>Incremental Scanning</h3>
+<p>After the first full scan, subsequent scans only process new or modified files by comparing file modification timestamps against the cached manifest. Deleted files are automatically removed. The cached manifest persists across app restarts.</p>
+
+<h2 id="api">8. API Endpoints</h2>
+<table>
+<tr><th>Endpoint</th><th>Method</th><th>Description</th></tr>
+<tr><td><code>/</code></td><td>GET</td><td>Main dashboard page</td></tr>
+<tr><td><code>/remote</code></td><td>GET</td><td>Phone remote control page</td></tr>
+<tr><td><code>/api/config</code></td><td>GET/POST</td><td>Read or update all settings</td></tr>
+<tr><td><code>/api/photos</code></td><td>GET</td><td>Get photo manifest (includes scan status)</td></tr>
+<tr><td><code>/api/photos/scan</code></td><td>POST</td><td>Trigger scan (?full=true for full rescan)</td></tr>
+<tr><td><code>/api/photo/&lt;id&gt;</code></td><td>GET</td><td>Serve a photo/video by ID</td></tr>
+<tr><td><code>/api/weather</code></td><td>GET</td><td>Get weather data (?force=true to bypass cache)</td></tr>
+<tr><td><code>/api/news</code></td><td>GET</td><td>Get news articles (?force=true to refresh)</td></tr>
+<tr><td><code>/api/stocks</code></td><td>GET</td><td>Get stock ticker articles</td></tr>
+<tr><td><code>/api/calendar</code></td><td>GET</td><td>Get calendar events (requires OAuth)</td></tr>
+<tr><td><code>/api/commute</code></td><td>GET</td><td>Get commute times (respects schedule)</td></tr>
+<tr><td><code>/api/notes</code></td><td>GET/POST</td><td>List or add notes</td></tr>
+<tr><td><code>/api/notes/&lt;id&gt;</code></td><td>DELETE</td><td>Delete a note</td></tr>
+<tr><td><code>/api/notes/&lt;id&gt;/pin</code></td><td>POST</td><td>Toggle pin on a note</td></tr>
+<tr><td><code>/api/status</code></td><td>GET</td><td>Network status (internet + NAS)</td></tr>
+<tr><td><code>/api/browse</code></td><td>GET</td><td>Browse folders (?path=...)</td></tr>
+<tr><td><code>/api/detect-location</code></td><td>GET</td><td>Auto-detect city via IP</td></tr>
+<tr><td><code>/api/autocomplete/city</code></td><td>GET</td><td>City name autocomplete (?q=...)</td></tr>
+<tr><td><code>/api/autocomplete/address</code></td><td>GET</td><td>Address autocomplete (?q=...)</td></tr>
+<tr><td><code>/api/youtube/search</code></td><td>GET</td><td>YouTube video search (?q=...)</td></tr>
+<tr><td><code>/oauth/start</code></td><td>GET</td><td>Start Google OAuth flow</td></tr>
+<tr><td><code>/oauth/callback</code></td><td>GET</td><td>OAuth callback handler</td></tr>
+<tr><td><code>/api/volume</code></td><td>GET</td><td>Get system volume and mute state</td></tr>
+<tr><td><code>/api/volume</code></td><td>POST</td><td>Set system volume (JSON: {"volume": 0-100})</td></tr>
+<tr><td><code>/api/volume/mute</code></td><td>POST</td><td>Toggle system mute</td></tr>
+<tr><td><code>/api/voice</code></td><td>POST</td><td>Send voice command to Gemini AI</td></tr>
+<tr><td><code>/api/voice/reset</code></td><td>POST</td><td>Reset voice conversation history</td></tr>
+</table>
+
+<h2 id="troubleshooting">9. Troubleshooting</h2>
+
+<h3>Photos not showing</h3>
+<ul>
+<li>Check the photo path in Settings — make sure it's correct and accessible</li>
+<li>For NAS paths, verify you can open the path in Windows File Explorer first</li>
+<li>If NAS requires credentials, make sure Windows has them saved ("Remember my credentials")</li>
+<li>Check the terminal for scan errors — look for <code>[PHOTOS]</code> messages</li>
+<li>Try clicking "Rescan" in Settings</li>
+</ul>
+
+<h3>Weather not loading or not updating</h3>
+<ul>
+<li>Check that "Show" is toggled on in Settings → Weather</li>
+<li>Verify the city name is correct — try the auto-detect button (crosshair icon)</li>
+<li>Open <code>http://localhost:5000/api/weather</code> in a browser to check the raw response</li>
+<li>Changing °F/°C or city forces a fresh fetch</li>
+<li>Weather refreshes every 10 minutes automatically</li>
+</ul>
+
+<h3>News ticker not visible</h3>
+<ul>
+<li>Check "Show" toggle in Settings → News</li>
+<li>Verify RSS feed URLs are valid — open <code>http://localhost:5000/api/news</code> to check</li>
+<li>The ticker may be behind other elements — check the height setting</li>
+</ul>
+
+<h3>Calendar OAuth errors</h3>
+<ul>
+<li>Make sure <code>credentials.json</code> is in the <code>family-dashboard</code> folder</li>
+<li>Verify the OAuth client type is "Web application" with redirect URI <code>http://localhost:5000/oauth/callback</code></li>
+<li>Add your email as a test user in the Google Cloud Console → OAuth consent screen → Audience</li>
+<li>If you see "Access blocked", your email isn't in the test users list</li>
+</ul>
+
+<h3>Calendar shows "Connected" but no events</h3>
+<ul>
+<li>Open <code>http://localhost:5000/api/calendar</code> to check the raw response</li>
+<li>Check the terminal for <code>[CALENDAR] Error:</code> messages</li>
+<li>The token may have expired — try disconnecting and reconnecting</li>
+</ul>
+
+<h3>Videos not playing audio</h3>
+<ul>
+<li>Check "Mute Video" toggle in Settings → Slideshow — toggle it off for audio</li>
+<li>Chrome blocks autoplay with audio until you interact with the page — click anywhere on the dashboard once</li>
+</ul>
+
+<h3>Commute not showing</h3>
+<ul>
+<li>Requires a Google Maps API key in Settings → Commute</li>
+<li>Check the schedule setting — commute may only show during configured hours</li>
+<li>Set schedule to "Always" for testing</li>
+</ul>
+
+<h3>Slow photo transitions</h3>
+<ul>
+<li>Large files (RAW, high-res) take longer to load over network</li>
+<li>Consider using local photos or wired ethernet to NAS</li>
+<li>RAW/HEIC files are cached as JPEG after first view — subsequent loads are faster</li>
+</ul>
+
+<h3>Chrome kiosk mode not working</h3>
+<ul>
+<li>Close ALL Chrome windows first (including system tray)</li>
+<li>Use <code>F11</code> for fullscreen as a simpler alternative</li>
+<li>Set Chrome to "Continue where you left off" in Chrome settings for persistence across restarts</li>
+</ul>
+
+<h3>'py' or 'pip' not recognized</h3>
+<ul>
+<li>Python isn't in your PATH — reinstall Python and check "Add to PATH"</li>
+<li>Or use the full path: <code>C:\Users\YourName\AppData\Local\Python\...\python.exe</code></li>
+</ul>
+
+<h3>DecompressionBombWarning</h3>
+<ul>
+<li>This is handled — the app disables Pillow's size limit. If you still see warnings, they're harmless.</li>
+</ul>
+
+<h2 id="keyboard">10. Keyboard Shortcuts</h2>
+<table>
+<tr><th>Key</th><th>Action</th></tr>
+<tr><td><code>C</code></td><td>Toggle Calendar panel</td></tr>
+<tr><td><code>S</code></td><td>Toggle Settings panel</td></tr>
+<tr><td><code>N</code></td><td>Toggle Notes panel</td></tr>
+<tr><td><code>K</code></td><td>Toggle Virtual Keyboard mode</td></tr>
+<tr><td><code>M</code></td><td>Activate Voice Command (push-to-talk)</td></tr>
+<tr><td><code>Escape</code></td><td>Close all panels</td></tr>
+<tr><td><code>→</code> (Right Arrow)</td><td>Skip to next photo</td></tr>
+<tr><td><code>F11</code></td><td>Toggle Chrome fullscreen</td></tr>
+<tr><td><code>Alt+F4</code></td><td>Exit kiosk mode</td></tr>
+</table>
+
+<h2 id="voice">11. Voice Commands</h2>
+<p>The voice assistant uses Google's Gemini AI to understand natural language commands and control the dashboard conversationally. Press the microphone button (bottom-right FAB bar) or press <code>M</code> to start a conversation.</p>
+
+<div class="note">Requires: USB microphone, Gemini API key (free from <a href="https://aistudio.google.com">aistudio.google.com</a>), and internet connection.</div>
+
+<h3>Setup</h3>
+<ol>
+<li>Go to <a href="https://aistudio.google.com">aistudio.google.com</a> and sign in</li>
+<li>Click "Get API key" → create a new key (free, no credit card)</li>
+<li>In the dashboard, go to Settings → Voice Assistant → paste the API key</li>
+<li>Select model: Gemini 2.5 Flash-Lite (free) is the default</li>
+<li>Set warm timeout (how long the mic stays active between exchanges)</li>
+</ol>
+
+<h3>How It Works</h3>
+<ol>
+<li>Press mic button or <code>M</code> key → voice overlay appears, mic activates</li>
+<li>Speak naturally → Chrome transcribes your speech (Web Speech API, free)</li>
+<li>Transcribed text + current dashboard data (weather, calendar, notes) sent to Gemini</li>
+<li>Gemini interprets your intent, returns a spoken response + dashboard action</li>
+<li>Dashboard speaks the response and executes the action simultaneously</li>
+<li>Mic stays warm for 15 seconds (configurable) — speak again to continue the conversation</li>
+<li>After the timeout, the conversation ends automatically</li>
+<li>Press mic button again to end early</li>
+</ol>
+
+<h3>Visual States</h3>
+<table>
+<tr><th>Mic Color</th><th>State</th></tr>
+<tr><td style="color:#ea4335;">Red (pulsing)</td><td>Listening — speak now</td></tr>
+<tr><td style="color:#4285f4;">Blue (pulsing)</td><td>Thinking — Gemini is processing</td></tr>
+<tr><td style="color:#34a853;">Green (pulsing)</td><td>Speaking — AI is responding</td></tr>
+<tr><td style="color:#fbbc04;">Yellow</td><td>Warm — waiting for your next input (countdown ring shows remaining time)</td></tr>
+</table>
+
+<h3>What You Can Say</h3>
+<p>Unlike simple keyword matching, the Gemini-powered assistant understands natural language. All of these work:</p>
+<ul>
+<li>"What's the weather?" / "Do I need an umbrella?" / "How cold is it tomorrow?"</li>
+<li>"Play some jazz" / "Put on Blinding Lights" / "Something more upbeat"</li>
+<li>"What's on my calendar today?" / "Do I have anything after 3?" / "What about tomorrow?"</li>
+<li>"Add a note that the plumber is coming Thursday" / "Pin that to the screen"</li>
+<li>"Next photo" / "Show me the week view" / "Close that"</li>
+<li>"What time is it?" / "How tall is the Eiffel Tower?" / "Tell me a joke"</li>
+</ul>
+<p>Follow-up questions work within a conversation: "What's the weather?" → "And tomorrow?" → "Will it rain this weekend?"</p>
+
+<h3>Conversation Memory</h3>
+<p>The assistant remembers the last 10 exchanges within a session. Context resets when the page reloads. This allows natural follow-ups without repeating yourself.</p>
+
+<h2 id="music">12. YouTube Music Player</h2>
+<p>The music player uses the YouTube IFrame Player API to play music videos with audio through your speakers. The video is hidden — you only hear the audio. Your YouTube Premium account works automatically since Chrome is signed into your Google account.</p>
+
+<h3>Setup</h3>
+<ol>
+<li>Ensure YouTube Data API v3 is enabled in your Google Cloud Console</li>
+<li>In the dashboard, go to Settings → YouTube Music → paste your API key (same key as Google Maps)</li>
+<li>Toggle "Show" on</li>
+</ol>
+
+<h3>Using the Player</h3>
+<ul>
+<li>Click the search icon (🔍) on the music widget to open the search panel</li>
+<li>Type a song or artist name — results appear with thumbnails</li>
+<li>Click a result to play it — audio starts immediately</li>
+<li>Use play/pause, next, previous buttons on the widget</li>
+<li>Or use voice commands: "Play [song name]", "Pause", "Next song"</li>
+</ul>
+
+<h3>How It Works</h3>
+<ol>
+<li>Search query goes to the backend → YouTube Data API v3 returns video results</li>
+<li>Selected video loads in a hidden YouTube IFrame Player</li>
+<li>Audio plays through the system's default audio output (your Bluetooth speaker)</li>
+<li>Search results become a queue — when a song ends, the next one plays automatically</li>
+</ol>
+
+<div class="note">The player uses YouTube video results (not YouTube Music tracks), but for most songs the audio is identical. Your YouTube Premium subscription provides ad-free playback.</div>
+
+<h2 id="kiosk">13. Kiosk & Auto-Start Setup</h2>
+<p>For a permanent wall-mounted display, configure the mini PC to boot directly into the dashboard.</p>
+<h3>One-Time Setup</h3>
+<ol>
+<li>Install Python — check "Add to PATH"</li>
+<li><code>cd D:\family-dashboard</code> then <code>py -m pip install -r requirements.txt</code></li>
+<li>Right-click <code>configure-kiosk.bat</code> → "Run as administrator" — disables screen timeout, sleep, lock screen, hibernate</li>
+<li>Auto-login: Press <code>Win+R</code>, type <code>netplwiz</code>, uncheck "Users must enter a user name and password"</li>
+<li>Run <code>setup.bat</code> — creates Windows Startup shortcut</li>
+<li>Reboot to test</li>
+</ol>
+<h3>Preventing Windows Update Restarts</h3>
+<p>Settings → Windows Update → Advanced options → Active hours → set to your full day.</p>
+
+<h2 id="playback">14. Playback Controls & System Volume</h2>
+<p>A playback control bar appears at the bottom-center of the screen on hover (above the news/stock tickers).</p>
+<h3>Controls</h3>
+<table>
+<tr><th>Button</th><th>Action</th></tr>
+<tr><td>⏮ Previous</td><td>Go to previous photo/video</td></tr>
+<tr><td>⏸ Pause / ▶ Play</td><td>Pause or resume the slideshow</td></tr>
+<tr><td>⏭ Next</td><td>Skip to next photo/video</td></tr>
+<tr><td>🔇 Mute</td><td>Toggle Windows system mute (mutes all audio output)</td></tr>
+<tr><td>🔊 Volume Slider</td><td>Controls Windows system volume (affects soundbar/speakers)</td></tr>
+</table>
+<h3>Volume Control</h3>
+<p>The volume slider controls the Windows system master volume via the <code>pycaw</code> library. This affects all audio output — YouTube music, video playback, voice assistant responses, everything. The slider syncs with the actual system volume.</p>
+<div class="note">Separate from the "Mute Video" toggle in Settings → Slideshow, which only mutes <code>&lt;video&gt;</code> elements in the slideshow without affecting YouTube music or system audio.</div>
+
+<h2 id="media">15. Media Support & Smart Scaling</h2>
+<h3>Supported Formats</h3>
+<table>
+<tr><th>Type</th><th>Extensions</th><th>Notes</th></tr>
+<tr><td>Standard Images</td><td>.jpg, .jpeg, .png, .bmp, .gif, .webp, .tiff</td><td>Served directly</td></tr>
+<tr><td>RAW Photos</td><td>.arw, .cr2, .nef, .dng, .raf</td><td>Converted to JPEG, cached</td></tr>
+<tr><td>HEIC/HEIF</td><td>.heic, .heif</td><td>Converted to JPEG, cached</td></tr>
+<tr><td>Videos</td><td>.mp4, .mov, .avi, .mkv, .webm</td><td>Streamed, auto-advance on end</td></tr>
+</table>
+<h3>Smart Photo Scaling</h3>
+<ul>
+<li>Photos with aspect ratios close to the screen (within 1.25x) use <code>cover</code> — fills screen, minimal cropping, face-centered</li>
+<li>Photos with extreme aspect ratios (panoramas, very tall) use <code>contain</code> — full photo visible, black bars</li>
+<li>Portrait pairs always use <code>contain</code> — both photos fully visible in their half</li>
+<li>Videos always use <code>contain</code> — full video visible</li>
+</ul>
+<h3>Face-Centered Cropping</h3>
+<p>OpenCV detects faces during scanning. When <code>cover</code> mode is used, the crop centers on detected faces. EXIF rotation is accounted for to correctly classify portrait vs landscape.</p>
+
+<h2 id="audio">16. Audio Priority System</h2>
+<table>
+<tr><th>Priority</th><th>Source</th><th>Behavior</th></tr>
+<tr><td>1 (highest)</td><td>Voice Assistant</td><td>Pauses YouTube, mutes slideshow videos</td></tr>
+<tr><td>2</td><td>Video Slideshow (unmuted)</td><td>Pauses YouTube music</td></tr>
+<tr><td>3 (lowest)</td><td>YouTube Music</td><td>Plays when nothing else needs audio</td></tr>
+</table>
+<p>Audio resumes automatically when the higher-priority source finishes.</p>
+
+<h2 id="status">17. Service Status Dashboard</h2>
+<p>The Settings panel shows a "Service Status" section at the top with real-time status of all external services:</p>
+<table>
+<tr><th>Service</th><th>What it checks</th></tr>
+<tr><td>Internet</td><td>Can reach dns.google</td></tr>
+<tr><td>IP Address</td><td>Machine's local IP (useful for remote URL)</td></tr>
+<tr><td>NAS / Photos</td><td>Photo path accessible, file count, scan status</td></tr>
+<tr><td>Weather</td><td>Open-Meteo API responding</td></tr>
+<tr><td>News RSS</td><td>Feeds returning articles</td></tr>
+<tr><td>Calendar</td><td>OAuth token valid</td></tr>
+<tr><td>Commute (Maps)</td><td>API key configured</td></tr>
+<tr><td>YouTube Music</td><td>API key configured</td></tr>
+<tr><td>Voice (Gemini)</td><td>API key configured</td></tr>
+</table>
+<p>Status refreshes every 30 seconds. Green ✅ = working, Red ❌ = error, Yellow ⚠️ = not configured.</p>
+
+<h2 id="remote">18. Remote Control (Phone)</h2>
+<p>Access from any device on the same network at <code>http://&lt;mini-pc-ip&gt;:5000/remote</code></p>
+<h3>Features</h3>
+<ul>
+<li>Slideshow: Previous, Pause, Play, Next, Rescan</li>
+<li>System Volume: slider that controls the mini PC's audio output</li>
+<li>Music: search songs, play/pause/skip controls</li>
+<li>Notes: post new notes, view all notes, delete notes</li>
+<li>Dashboard: show/hide calendar, weather, notes panels, mute/unmute</li>
+</ul>
+<p>All actions execute on the dashboard in real-time via the Gemini voice API.</p>
+
+<p style="margin-top:40px;color:#999;font-size:12px;">Family Dashboard v2.1 — Updated April 2026 — Playback Controls, System Volume, Service Status, Smart Scaling</p>
+
+</div>
+</body>
+</html>

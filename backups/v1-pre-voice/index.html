@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Family Dashboard</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700&family=Georgia&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div id="slideshow-container">
+        <div id="slide-current" class="slide active"></div>
+        <div id="slide-next" class="slide"></div>
+
+        <div id="clock-overlay">
+            <div id="clock-time"></div>
+            <div id="clock-date"></div>
+        </div>
+
+        <div id="weather-widget" style="display:none;"></div>
+        <div id="commute-widget" style="display:none;"></div>
+
+        <div id="music-widget" style="display:none;">
+            <div class="music-now-playing" id="music-launcher" style="cursor:pointer;">
+                <div class="music-art">🎵</div>
+                <div class="music-info">
+                    <div class="music-title">YouTube Music</div>
+                    <div class="music-artist">Tap to open</div>
+                </div>
+                <div class="music-controls">
+                    <button class="music-btn music-btn-play" id="music-open-player" title="Open YouTube Music"><i class="fas fa-external-link-alt"></i></button>
+                </div>
+            </div>
+        </div>
+
+        <div id="stock-ticker" style="display:none;">
+            <div class="ticker-label" style="background:#34a853;"><i class="fas fa-chart-line"></i> STOCKS</div>
+            <div class="ticker-track"><div class="ticker-content" id="stock-ticker-content"></div></div>
+        </div>
+
+        <div id="news-ticker" style="display:none;">
+            <div class="ticker-label"><i class="fas fa-newspaper"></i> NEWS</div>
+            <div class="ticker-track"><div class="ticker-content" id="ticker-content"></div></div>
+        </div>
+        <div id="news-cards" style="display:none;"></div>
+
+        <div id="pinned-note" style="display:none;">
+            <button id="pinned-note-close"><i class="fas fa-times"></i></button>
+            <div class="pinned-note-icon"><i class="fas fa-thumbtack"></i></div>
+            <div class="pinned-note-text"></div>
+            <div class="pinned-note-meta"></div>
+        </div>
+
+        <div id="photo-info">
+            <div id="photo-filename"></div>
+            <div id="photo-meta"></div>
+        </div>
+
+        <div id="fab-container">
+            <button id="btn-keyboard" class="fab" title="Keyboard (K)"><i class="fas fa-keyboard"></i></button>
+            <button id="btn-notes" class="fab" title="Notes (N)"><i class="fas fa-sticky-note"></i></button>
+            <button id="btn-calendar" class="fab" title="Calendar (C)"><i class="fas fa-calendar-alt"></i></button>
+            <button id="btn-settings" class="fab" title="Settings (S)"><i class="fas fa-cog"></i></button>
+        </div>
+
+        <div id="network-status" class="network-ok"><i class="fas fa-wifi"></i></div>
+        <div id="progress-bar-container"><div id="progress-bar"></div></div>
+    </div>
+
+    <!-- Calendar Panel -->
+    <div id="calendar-panel" class="panel-hidden">
+        <div id="calendar-header">
+            <h2><i class="fas fa-calendar-alt"></i> Family Calendar</h2>
+            <div class="calendar-header-right">
+                <div class="view-toggle">
+                    <button class="view-toggle-btn active" data-view="agenda"><i class="fas fa-list"></i></button>
+                    <button class="view-toggle-btn" data-view="week"><i class="fas fa-calendar-week"></i></button>
+                    <button class="view-toggle-btn" data-view="month"><i class="fas fa-calendar"></i></button>
+                </div>
+                <button id="btn-close-calendar" class="panel-close"><i class="fas fa-times"></i></button>
+            </div>
+        </div>
+        <div id="cal-view-agenda" class="cal-view-content">
+            <div id="agenda-events"><p style="opacity:0.4;text-align:center;padding:40px;">Connect Google Calendar in Settings to see events</p></div>
+        </div>
+        <div id="cal-view-week" class="cal-view-content" style="display:none;">
+            <div id="week-view-content"><iframe id="cal-embed-week" src="" style="width:100%;border:none;border-radius:8px;background:#fff;" allowfullscreen></iframe></div>
+        </div>
+        <div id="cal-view-month" class="cal-view-content" style="display:none;">
+            <div id="month-view-content"><iframe id="cal-embed-month" src="" style="width:100%;border:none;border-radius:8px;background:#fff;" allowfullscreen></iframe></div>
+        </div>
+    </div>
+
+    <!-- Notes Panel -->
+    <div id="notes-panel" class="panel-hidden">
+        <div id="notes-header">
+            <h2><i class="fas fa-sticky-note"></i> Family Notes</h2>
+            <button id="btn-close-notes" class="panel-close"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="notes-content">
+            <div class="note-input-area">
+                <textarea id="note-input" placeholder="Write a note..." rows="2"></textarea>
+                <div class="note-input-footer">
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        <select id="note-color">
+                            <option value="#fbbc04" selected>🟡</option>
+                            <option value="#4285f4">🔵</option>
+                            <option value="#34a853">🟢</option>
+                            <option value="#ea4335">🔴</option>
+                            <option value="#a259ff">🟣</option>
+                        </select>
+                        <input type="text" id="note-author" placeholder="Your name" value="" style="width:100px;">
+                    </div>
+                    <button class="btn-primary btn-sm" id="btn-add-note"><i class="fas fa-plus"></i> Add</button>
+                </div>
+            </div>
+            <div id="notes-list"></div>
+            <!-- Note Overlay Settings -->
+            <div class="note-overlay-settings">
+                <h3 style="font-size:12px;font-weight:600;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.5px;margin:20px 0 12px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.06);"><i class="fas fa-thumbtack"></i> Pinned Note Overlay</h3>
+                <div class="setting-item"><label>Font</label><select id="s-note-font" class="font-select"><option value="Segoe UI">Segoe UI</option><option value="Arial">Arial</option><option value="Calibri">Calibri</option><option value="Cambria">Cambria</option><option value="Georgia">Georgia</option><option value="Times New Roman">Times New Roman</option><option value="Verdana">Verdana</option><option value="Trebuchet MS">Trebuchet MS</option><option value="Consolas">Consolas</option><option value="Comic Sans MS">Comic Sans</option></select></div>
+                <div class="setting-item"><label>Size</label><div class="range-container"><input type="range" id="s-note-fontsize" min="12" max="32" value="14"><span class="range-value" id="s-note-fontsize-val">14px</span></div></div>
+                <div class="setting-item"><label>Weight</label><select id="s-note-weight"><option value="400" selected>Regular</option><option value="600">Semi-Bold</option><option value="700">Bold</option></select></div>
+                <div class="setting-item"><label>Italic</label><label class="toggle"><input type="checkbox" id="s-note-italic"><span class="toggle-slider"></span></label></div>
+                <div class="setting-item"><label>Color</label><div class="color-swatch-row" data-target="s-note-color"><button class="color-swatch active" data-color="#ffffff" style="background:#ffffff;"></button><button class="color-swatch" data-color="#f5f5f5" style="background:#f5f5f5;"></button><button class="color-swatch" data-color="#fbbc04" style="background:#fbbc04;"></button><button class="color-swatch" data-color="#ea4335" style="background:#ea4335;"></button><button class="color-swatch" data-color="#4285f4" style="background:#4285f4;"></button><button class="color-swatch" data-color="#34a853" style="background:#34a853;"></button><button class="color-swatch" data-color="#a259ff" style="background:#a259ff;"></button><button class="color-swatch" data-color="#ff6d01" style="background:#ff6d01;"></button><input type="color" id="s-note-color" value="#ffffff" class="color-input-mini"></div></div>
+                <div class="setting-item"><label>Width</label><select id="s-note-width"><option value="220">Small</option><option value="280">Medium</option><option value="360">Large</option><option value="450">XL</option></select></div>
+                <div class="setting-item"><label>Opacity</label><div class="range-container"><input type="range" id="s-note-opacity" min="20" max="100" value="50"><span class="range-value" id="s-note-opacity-val">50%</span></div></div>
+                <div class="setting-item"><label>Position</label><select id="s-note-pos"><option value="tl">Top Left</option><option value="tr">Top Right</option><option value="cl">Center Left</option><option value="cr">Center Right</option><option value="bl">Bottom Left</option><option value="br">Bottom Right</option></select></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Panel -->
+    <div id="settings-panel" class="panel-hidden">
+        <div id="settings-header">
+            <h2><i class="fas fa-cog"></i> Settings</h2>
+            <button id="btn-close-settings" class="panel-close"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="settings-content">
+            <div class="settings-group">
+                <h3><i class="fas fa-folder-open"></i> Photo Source</h3>
+                <div class="setting-item"><label>NAS / Folder Path</label><div style="display:flex;gap:6px;width:100%;margin-top:4px;"><input type="text" id="s-photos-path" placeholder="\\NAS\Photos or D:\Photos" style="flex:1;margin:0;"><button class="btn-secondary btn-sm" id="btn-browse-folder"><i class="fas fa-folder-open"></i></button></div></div>
+                <div class="setting-item"><label>Include Subfolders</label><label class="toggle"><input type="checkbox" id="s-photos-subfolders"><span class="toggle-slider"></span></label></div>
+                <div class="setting-item"><label>Auto-Scan</label><select id="s-photos-scan"><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hour</option><option value="0">Off</option></select></div>
+                <div class="setting-item"><button class="btn-secondary" id="btn-rescan"><i class="fas fa-sync-alt"></i> Rescan</button><button class="btn-secondary" id="btn-full-rescan" style="margin-left:6px;"><i class="fas fa-redo"></i> Full</button><span class="setting-hint" id="photo-count"></span></div>
+            </div>
+            <div class="settings-group">
+                <h3><i class="fas fa-images"></i> Slideshow</h3>
+                <div class="setting-item"><label>Interval</label><div class="mmss-picker" id="s-slide-interval"><select class="mmss-min"></select><span class="mmss-sep">:</span><select class="mmss-sec"></select></div></div>
+                <div class="setting-item"><label>Transition</label><select id="s-slide-transition"><option value="fade">Fade</option><option value="slide">Slide</option><option value="zoom">Ken Burns</option><option value="none">None</option></select></div>
+                <div class="setting-item"><label>Shuffle</label><label class="toggle"><input type="checkbox" id="s-slide-shuffle"><span class="toggle-slider"></span></label></div>
+                <div class="setting-item"><label>Pair Portraits</label><label class="toggle"><input type="checkbox" id="s-slide-pair"><span class="toggle-slider"></span></label></div>
+                <div class="setting-item"><label>Mute Video</label><label class="toggle"><input type="checkbox" id="s-slide-audio"><span class="toggle-slider"></span></label></div>
+            </div>
+            <div class="settings-group">
+                <h3><i class="fas fa-clock"></i> Clock & Date</h3>
+                <div class="setting-item"><label>Show Clock</label><label class="toggle"><input type="checkbox" id="s-clock-show"><span class="toggle-slider"></span></label></div>
+                <div class="setting-item"><label>Position</label><select id="s-clock-pos"><option value="tl">Top Left</option><option value="tc">Top Center</option><option value="tr">Top Right</option><option value="bl">Bottom Left</option><option value="bc">Bottom Center</option><option value="br">Bottom Right</option></select></div>
+                <div class="setting-item"><label>Font</label><select id="s-clock-font" class="font-select"><option value="Segoe UI">Segoe UI</option><option value="Arial">Arial</option><option value="Calibri">Calibri</option><option value="Cambria">Cambria</option><option value="Georgia">Georgia</option><option value="Times New Roman">Times New Roman</option><option value="Verdana">Verdana</option><option value="Trebuchet MS">Trebuchet MS</option><option value="Consolas">Consolas</option><option value="Comic Sans MS">Comic Sans</option></select></div>
+                <div class="setting-item"><label>Time Size</label><div class="range-container"><input type="range" id="s-clock-fontsize" min="24" max="120" value="48"><span class="range-value" id="s-clock-fontsize-val">48px</span></div></div>
+                <div class="setting-item"><label>Weight</label><select id="s-clock-weight"><option value="200">Thin</option><option value="300">Light</option><option value="400">Regular</option><option value="600">Semi-Bold</option><option value="700">Bold</option></select></div>
+                <div class="setting-item"><label>Italic</label><label class="toggle"><input type="checkbox" id="s-clock-italic"><span class="toggle-slider"></span></label></div>
+                <div class="setting-item"><label>Color</label><div class="color-swatch-row" data-target="s-clock-color"><button class="color-swatch active" data-color="#ffffff" style="background:#ffffff;"></button><button class="color-swatch" data-color="#f5f5f5" style="background:#f5f5f5;"></button><button class="color-swatch" data-color="#fbbc04" style="background:#fbbc04;"></button><button class="color-swatch" data-color="#ea4335" style="background:#ea4335;"></button><button class="color-swatch" data-color="#4285f4" style="background:#4285f4;"></button><button class="color-swatch" data-color="#34a853" style="background:#34a853;"></button><button class="color-swatch" data-color="#a259ff" style="background:#a259ff;"></button><button class="color-swatch" data-color="#ff6d01" style="background:#ff6d01;"></button><input type="color" id="s-clock-color" value="#ffffff" class="color-input-mini"></div></div>
+                <div class="setting-item"><label>Format</label><select id="s-clock-format"><option value="12">12 Hour</option><option value="24">24 Hour</option></select></div>
+                <div class="setting-item"><label>Seconds</label><label class="toggle"><input type="checkbox" id="s-clock-seconds"><span class="toggle-slider"></span></label></div>
+                <div class="setting-item"><label>Show Date</label><label class="toggle"><input type="checkbox" id="s-clock-date"><span class="toggle-slider"></span></label></div>
+                <div class="setting-item"><label>Date Size</label><div class="range-container"><input type="range" id="s-date-fontsize" min="10" max="48" value="16"><span class="range-value" id="s-date-fontsize-val">16px</span></div></div>
+                <div class="setting-item"><label>Date Format</label><select id="s-date-format"><option value="long">Friday, April 3</option><option value="medium">Apr 3, 2026</option><option value="short">04/03/2026</option></select></div>
+            </div>
+            <div class="settings-group">
+                <h3><i class="fas fa-cloud-sun"></i> Weather</h3>
+                <div class="setting-item"><label>Show</label><label class="toggle"><input type="checkbox" id="s-weather-show"><span class="toggle-slider"></span></label></div>
+                <div class="setting-item"><label>Source</label><select id="s-weather-source"><option value="openmeteo">Open-Meteo (Free)</option><option value="openweather">OpenWeatherMap</option></select></div>
+                <div class="setting-item" id="s-weather-apikey-row"><label>API Key</label><input type="text" id="s-weather-apikey" placeholder="OpenWeatherMap key"></div>
+                <div class="setting-item"><label>Position</label><select id="s-weather-pos"><option value="tl">Top Left</option><option value="tr">Top Right</option><option value="bl">Bottom Left</option><option value="br">Bottom Right</option></select></div>
+                <div class="setting-item"><label>Unit</label><select id="s-weather-unit"><option value="f">°F</option><option value="c">°C</option></select></div>
+                <div class="setting-item"><label>Location</label><div style="display:flex;gap:6px;width:100%;margin-top:4px;"><input type="text" id="s-weather-city" placeholder="City name" data-autocomplete="city" style="flex:1;margin:0;"><button class="btn-secondary btn-sm" id="btn-detect-location"><i class="fas fa-crosshairs"></i></button></div></div>
+                <div class="setting-item"><label>Opacity</label><div class="range-container"><input type="range" id="s-weather-opacity" min="20" max="100" value="70"><span class="range-value" id="s-weather-opacity-val">70%</span></div></div>
+            </div>
+            <div class="settings-group">
+                <h3><i class="fas fa-route"></i> Commute</h3>
+                <div class="setting-item"><label>Google Maps API Key</label><input type="text" id="s-commute-apikey" placeholder="Maps API key"></div>
+                <div class="setting-subgroup">
+                    <div class="setting-sublabel-row"><span class="setting-sublabel">Commute 1</span><label class="toggle"><input type="checkbox" id="s-c1-enabled"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label>Label</label><input type="text" id="s-c1-label"></div>
+                    <div class="setting-item"><label>From</label><input type="text" id="s-c1-from" data-autocomplete="address"></div>
+                    <div class="setting-item"><label>To</label><input type="text" id="s-c1-to" data-autocomplete="address"></div>
+                    <div class="setting-item"><label>Show During</label><select id="s-c1-schedule"><option value="always">Always</option><option value="morning">Weekdays 6-9 AM</option><option value="evening">Weekdays 4-7 PM</option><option value="both">AM & PM Rush</option></select></div>
+                </div>
+                <div class="setting-subgroup">
+                    <div class="setting-sublabel-row"><span class="setting-sublabel">Commute 2</span><label class="toggle"><input type="checkbox" id="s-c2-enabled"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label>Label</label><input type="text" id="s-c2-label"></div>
+                    <div class="setting-item"><label>From</label><input type="text" id="s-c2-from" data-autocomplete="address"></div>
+                    <div class="setting-item"><label>To</label><input type="text" id="s-c2-to" data-autocomplete="address"></div>
+                    <div class="setting-item"><label>Show During</label><select id="s-c2-schedule"><option value="always">Always</option><option value="morning">Weekdays 6-9 AM</option><option value="evening">Weekdays 4-7 PM</option><option value="both">AM & PM Rush</option></select></div>
+                </div>
+            </div>
+            <div class="settings-group">
+                <h3><i class="fas fa-newspaper"></i> News</h3>
+                <div class="setting-item"><label>Show</label><label class="toggle"><input type="checkbox" id="s-news-show"><span class="toggle-slider"></span></label></div>
+                <div class="setting-item"><label>Style</label><select id="s-news-style"><option value="ticker">Ticker</option><option value="cards">Cards</option></select></div>
+                <div class="setting-item"><label>Height (px)</label><div class="range-container"><input type="range" id="s-news-height" min="24" max="80" value="42"><span class="range-value" id="s-news-height-val">42px</span></div></div>
+                <div class="setting-item"><label>Font Size (px)</label><div class="range-container"><input type="range" id="s-news-fontsize" min="10" max="24" value="14"><span class="range-value" id="s-news-fontsize-val">14px</span></div></div>
+                <div class="setting-item"><label>Scroll Speed</label><select id="s-news-speed"><option value="60">Slow</option><option value="40" selected>Normal</option><option value="25">Fast</option><option value="15">Very Fast</option></select></div>
+                <div class="setting-item feeds-list"><label>RSS Feeds</label><div id="feeds-container"></div><button class="btn-secondary btn-sm" id="btn-add-feed"><i class="fas fa-plus"></i> Add Feed</button></div>
+            </div>
+            <div class="settings-group">
+                <h3><i class="fas fa-chart-line"></i> Stock Ticker</h3>
+                <div class="setting-item"><label>Show</label><label class="toggle"><input type="checkbox" id="s-stock-show"><span class="toggle-slider"></span></label></div>
+                <div class="setting-item"><label>Height (px)</label><div class="range-container"><input type="range" id="s-stock-height" min="24" max="80" value="36"><span class="range-value" id="s-stock-height-val">36px</span></div></div>
+                <div class="setting-item"><label>Font Size (px)</label><div class="range-container"><input type="range" id="s-stock-fontsize" min="10" max="24" value="12"><span class="range-value" id="s-stock-fontsize-val">12px</span></div></div>
+                <div class="setting-item feeds-list"><label>Stock RSS Feeds</label><div id="stock-feeds-container"></div><button class="btn-secondary btn-sm" id="btn-add-stock-feed"><i class="fas fa-plus"></i> Add Feed</button></div>
+            </div>
+            <div class="settings-group">
+                <h3><i class="fas fa-music"></i> YouTube Music</h3>
+                <div class="setting-item"><label>Show</label><label class="toggle"><input type="checkbox" id="s-music-show"><span class="toggle-slider"></span></label></div>
+                <div class="setting-item"><label>Position</label><select id="s-music-pos"><option value="tl">Top Left</option><option value="tr">Top Right</option><option value="bl">Bottom Left</option><option value="br">Bottom Right</option></select></div>
+            </div>
+            <div class="settings-group">
+                <h3><i class="fas fa-calendar-alt"></i> Google Calendar</h3>
+                <div class="setting-item"><label>Agenda (API)</label><span class="status-badge" id="cal-status"><i class="fas fa-circle"></i> <span id="cal-status-text">Not Connected</span></span></div>
+                <div class="setting-item"><a href="/oauth/start" class="btn-primary" id="btn-connect-cal"><i class="fab fa-google"></i> Connect Calendar</a></div>
+                <div class="setting-item"><label>Days</label><select id="s-cal-days"><option value="1">Today</option><option value="3">3 Days</option><option value="7">Week</option></select></div>
+                <div class="setting-item"><label>Week/Month Embed URL</label><input type="text" id="s-cal-embed" placeholder="Paste Google Calendar embed URL"></div>
+                <div class="setting-hint" style="margin-top:-8px;margin-bottom:12px;">Google Calendar → Settings → Integrate → Embed code → copy the src URL</div>
+            </div>
+            <div class="settings-group">
+                <h3><i class="fas fa-desktop"></i> Display</h3>
+                <div class="setting-item"><label>Photo Info</label><label class="toggle"><input type="checkbox" id="s-disp-photoinfo"><span class="toggle-slider"></span></label></div>
+                <div class="setting-item"><label>Progress Bar</label><label class="toggle"><input type="checkbox" id="s-disp-progress"><span class="toggle-slider"></span></label></div>
+                <div class="setting-item"><label>Theme</label><select id="s-disp-theme"><option value="auto">Auto</option><option value="light">Light</option><option value="dark">Dark</option></select></div>
+                <div class="setting-item"><label>Auto-Hide</label><label class="toggle"><input type="checkbox" id="s-disp-autohide"><span class="toggle-slider"></span></label></div>
+                <div class="setting-item"><label>Auto-Cycle</label><label class="toggle"><input type="checkbox" id="s-disp-autocycle"><span class="toggle-slider"></span></label></div>
+                <div class="setting-item"><label>Show For</label><div class="mmss-picker" id="s-cycle-show"><select class="mmss-min"></select><span class="mmss-sep">:</span><select class="mmss-sec"></select></div></div>
+                <div class="setting-item"><label>Hide For</label><div class="mmss-picker" id="s-cycle-hide"><select class="mmss-min"></select><span class="mmss-sep">:</span><select class="mmss-sec"></select></div></div>
+                <div class="setting-item"><label>Burn-In</label><label class="toggle"><input type="checkbox" id="s-disp-burnin"><span class="toggle-slider"></span></label></div>
+                <div class="setting-item"><label>Schedule</label><select id="s-disp-schedule"><option value="always">Always On</option><option value="custom">Custom</option></select></div>
+                <div class="setting-subgroup" id="schedule-details">
+                    <div class="setting-sublabel">Weekdays</div>
+                    <div class="setting-item"><label>On</label><select id="s-wd-on"></select></div>
+                    <div class="setting-item"><label>Off</label><select id="s-wd-off"></select></div>
+                    <div class="setting-sublabel" style="margin-top:8px;">Weekends</div>
+                    <div class="setting-item"><label>On</label><select id="s-we-on"></select></div>
+                    <div class="setting-item"><label>Off</label><select id="s-we-off"></select></div>
+                </div>
+            </div>
+            <div class="settings-group">
+                <h3><i class="fas fa-info-circle"></i> About</h3>
+                <div class="setting-item about-info">
+                    <div>Family Dashboard v1.0</div>
+                    <div class="setting-hint" id="about-photos"></div>
+                    <div class="setting-hint" id="about-scan"></div>
+                    <div class="setting-hint">Remote: http://<span id="about-ip"></span>:5000/remote</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Virtual Keyboard -->
+    <div id="vkb-overlay" style="display:none;">
+        <div id="vkb">
+            <div class="vkb-input-preview"><span id="vkb-label"></span><span id="vkb-preview"></span></div>
+            <div class="vkb-emoji-row">
+                <button class="vkb-emoji" data-key="😀">😀</button><button class="vkb-emoji" data-key="❤️">❤️</button>
+                <button class="vkb-emoji" data-key="👍">👍</button><button class="vkb-emoji" data-key="🎉">🎉</button>
+                <button class="vkb-emoji" data-key="🔥">🔥</button><button class="vkb-emoji" data-key="⭐">⭐</button>
+                <button class="vkb-emoji" data-key="🍿">🍿</button><button class="vkb-emoji" data-key="⚽">⚽</button>
+                <button class="vkb-emoji" data-key="🎵">🎵</button><button class="vkb-emoji" data-key="📌">📌</button>
+                <button class="vkb-emoji" data-key="✅">✅</button><button class="vkb-emoji" data-key="❌">❌</button>
+                <button class="vkb-emoji" data-key="⚠️">⚠️</button><button class="vkb-emoji" data-key="🏠">🏠</button>
+                <button class="vkb-emoji" data-key="🛒">🛒</button><button class="vkb-emoji" data-key="💤">💤</button>
+            </div>
+            <div class="vkb-row">
+                <button class="vkb-key" data-key="1">1</button><button class="vkb-key" data-key="2">2</button><button class="vkb-key" data-key="3">3</button><button class="vkb-key" data-key="4">4</button><button class="vkb-key" data-key="5">5</button><button class="vkb-key" data-key="6">6</button><button class="vkb-key" data-key="7">7</button><button class="vkb-key" data-key="8">8</button><button class="vkb-key" data-key="9">9</button><button class="vkb-key" data-key="0">0</button><button class="vkb-key vkb-key-wide" data-action="backspace"><i class="fas fa-delete-left"></i></button>
+            </div>
+            <div class="vkb-row">
+                <button class="vkb-key" data-key="q">q</button><button class="vkb-key" data-key="w">w</button><button class="vkb-key" data-key="e">e</button><button class="vkb-key" data-key="r">r</button><button class="vkb-key" data-key="t">t</button><button class="vkb-key" data-key="y">y</button><button class="vkb-key" data-key="u">u</button><button class="vkb-key" data-key="i">i</button><button class="vkb-key" data-key="o">o</button><button class="vkb-key" data-key="p">p</button>
+            </div>
+            <div class="vkb-row">
+                <button class="vkb-key vkb-key-action" data-action="shift"><i class="fas fa-arrow-up"></i></button><button class="vkb-key" data-key="a">a</button><button class="vkb-key" data-key="s">s</button><button class="vkb-key" data-key="d">d</button><button class="vkb-key" data-key="f">f</button><button class="vkb-key" data-key="g">g</button><button class="vkb-key" data-key="h">h</button><button class="vkb-key" data-key="j">j</button><button class="vkb-key" data-key="k">k</button><button class="vkb-key" data-key="l">l</button>
+            </div>
+            <div class="vkb-row">
+                <button class="vkb-key vkb-key-action" data-action="symbols">?123</button><button class="vkb-key" data-key="z">z</button><button class="vkb-key" data-key="x">x</button><button class="vkb-key" data-key="c">c</button><button class="vkb-key" data-key="v">v</button><button class="vkb-key" data-key="b">b</button><button class="vkb-key" data-key="n">n</button><button class="vkb-key" data-key="m">m</button><button class="vkb-key" data-key=".">.</button><button class="vkb-key" data-key="-">-</button>
+            </div>
+            <div class="vkb-row">
+                <button class="vkb-key vkb-key-space" data-key=" ">space</button>
+                <button class="vkb-key vkb-key-action" data-key="/">/</button>
+                <button class="vkb-key vkb-key-action" data-key=":">:</button>
+                <button class="vkb-key vkb-key-action" data-key="@">@</button>
+                <button class="vkb-key vkb-key-action vkb-key-done" data-action="done"><i class="fas fa-check"></i> Done</button>
+            </div>
+            <div class="vkb-symbols" style="display:none;">
+                <div class="vkb-row">
+                    <button class="vkb-key" data-key="!">!</button><button class="vkb-key" data-key="#">#</button><button class="vkb-key" data-key="$">$</button><button class="vkb-key" data-key="%">%</button><button class="vkb-key" data-key="&amp;">&amp;</button><button class="vkb-key" data-key="*">*</button><button class="vkb-key" data-key="(">(</button><button class="vkb-key" data-key=")">)</button><button class="vkb-key" data-key="_">_</button><button class="vkb-key" data-key="+">+</button>
+                </div>
+                <div class="vkb-row">
+                    <button class="vkb-key vkb-key-action" data-action="abc">ABC</button><button class="vkb-key" data-key="~">~</button><button class="vkb-key" data-key="`">`</button><button class="vkb-key" data-key="|">|</button><button class="vkb-key" data-key="\">\</button><button class="vkb-key" data-key="{">{</button><button class="vkb-key" data-key="}">}</button><button class="vkb-key" data-key="=">=</button><button class="vkb-key" data-key="?">?</button><button class="vkb-key" data-key=",">,</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
