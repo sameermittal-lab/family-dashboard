@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Music Widget Mockup</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: 'Inter', sans-serif; color: #fff;
+    background: url('https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1920') center/cover no-repeat;
+    height: 100vh; overflow: hidden;
+}
+body::after { content: ''; position: fixed; inset: 0; background: rgba(0,0,0,0.3); }
+
+/* Simulated news ticker at bottom */
+.fake-ticker {
+    position: fixed; bottom: 0; left: 0; width: 100%; height: 42px; z-index: 5;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(12px);
+    display: flex; align-items: center; padding: 0 16px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    font-size: 13px; color: rgba(255,255,255,0.6);
+}
+.fake-ticker span { color: #fbbc04; font-weight: 700; margin-right: 8px; font-size: 11px; }
+
+/* Labels */
+.state-label {
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 100;
+    font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.4);
+    background: rgba(0,0,0,0.5); padding: 8px 20px; border-radius: 20px;
+    backdrop-filter: blur(10px); letter-spacing: 0.5px;
+}
+.toggle-btn {
+    position: fixed; top: 20px; right: 20px; z-index: 100;
+    padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.1); color: #fff; font-size: 12px;
+    font-family: 'Inter', sans-serif; cursor: pointer; backdrop-filter: blur(10px);
+}
+.toggle-btn:hover { background: rgba(255,255,255,0.2); }
+
+.music-widget {
+    position: fixed; bottom: 56px; right: 100px; z-index: 15;
+    background: rgba(255,255,255,0.08); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
+    border-radius: 20px; border: 1px solid rgba(255,255,255,0.12);
+    min-width: 300px; max-width: 340px;
+    overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    transition: all 0.3s ease;
+}
+.music-now-playing { display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
+.music-art {
+    width: 42px; height: 42px; border-radius: 8px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
+}
+.music-info { flex: 1; min-width: 0; }
+.music-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.music-artist { font-size: 11px; opacity: 0.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.music-controls-row { display: flex; gap: 6px; justify-content: center; align-items: center; padding: 2px 14px 8px; }
+.music-btn {
+    width: 30px; height: 30px; border-radius: 50%; border: none;
+    background: rgba(255,255,255,0.08); color: #fff; font-size: 11px;
+    cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center;
+}
+.music-btn:hover { background: rgba(255,255,255,0.18); }
+.music-btn-play { width: 34px; height: 34px; background: rgba(255,255,255,0.15); font-size: 13px; }
+.music-btn.active { color: #667eea; background: rgba(102,126,234,0.15); }
+.music-progress-row { display: flex; align-items: center; gap: 8px; padding: 0 14px 8px; }
+.music-time { font-size: 9px; color: rgba(255,255,255,0.35); min-width: 70px; text-align: center; }
+.music-progress { flex: 1; height: 3px; background: rgba(255,255,255,0.08); border-radius: 2px; cursor: pointer; }
+.music-progress-fill { height: 100%; background: #667eea; border-radius: 2px; transition: width 0.3s; }
+.music-up-next {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 14px 8px; font-size: 10px; color: rgba(255,255,255,0.4);
+    border-top: 1px solid rgba(255,255,255,0.04);
+}
+.up-next-label { font-weight: 600; color: rgba(255,255,255,0.25); text-transform: uppercase; letter-spacing: 0.5px; flex-shrink: 0; }
+.up-next-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.music-expanded {
+    border-top: 1px solid rgba(255,255,255,0.06);
+    max-height: 200px; overflow-y: auto; transition: max-height 0.3s ease;
+}
+.music-expanded::-webkit-scrollbar { width: 4px; }
+.music-expanded::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+.music-search-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.music-search-bar i { font-size: 12px; opacity: 0.4; }
+.music-search-bar input { flex: 1; background: none; border: none; color: #fff; font-size: 12px; font-family: 'Inter', sans-serif; outline: none; }
+.music-result-item { display: flex; align-items: center; gap: 10px; padding: 8px 14px; cursor: pointer; transition: background 0.2s; }
+.music-result-item:hover { background: rgba(255,255,255,0.06); }
+.music-result-title { font-size: 12px; font-weight: 500; }
+.music-result-artist { font-size: 10px; opacity: 0.4; }
+
+/* Simulated FABs */
+.fake-fabs {
+    position: fixed; bottom: 56px; right: 20px; z-index: 10;
+    display: flex; flex-direction: column; gap: 10px;
+}
+.fake-fab {
+    width: 44px; height: 44px; border-radius: 50%; border: none;
+    background: rgba(255,255,255,0.1); backdrop-filter: blur(30px);
+    color: #fff; font-size: 16px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+}
+</style>
+</head>
+<body>
+
+<div class="state-label" id="state-label">Collapsed — click Search to expand</div>
+<button class="toggle-btn" onclick="toggleSearch()">Toggle Search Panel</button>
+
+<!-- Simulated FABs -->
+<div class="fake-fabs">
+    <button class="fake-fab"><i class="fas fa-microphone"></i></button>
+    <button class="fake-fab"><i class="fas fa-keyboard"></i></button>
+    <button class="fake-fab"><i class="fas fa-sticky-note"></i></button>
+    <button class="fake-fab"><i class="fas fa-calendar-alt"></i></button>
+    <button class="fake-fab"><i class="fas fa-cog"></i></button>
+</div>
+
+<!-- Music widget at bottom-right -->
+<div class="music-widget" id="widget">
+    <div class="music-now-playing">
+        <div class="music-art">🎵</div>
+        <div class="music-info">
+            <div class="music-title">Bam Bam Jamaica</div>
+            <div class="music-artist">Sister Nancy</div>
+        </div>
+        <button class="music-btn" onclick="toggleSearch()" title="Search"><i class="fas fa-search"></i></button>
+    </div>
+    <div class="music-controls-row">
+        <button class="music-btn" onclick="this.classList.toggle('active')"><i class="fas fa-shuffle"></i></button>
+        <button class="music-btn"><i class="fas fa-backward-step"></i></button>
+        <button class="music-btn music-btn-play" id="playBtn" onclick="togglePlay()"><i class="fas fa-pause"></i></button>
+        <button class="music-btn"><i class="fas fa-forward-step"></i></button>
+        <button class="music-btn" onclick="this.classList.toggle('active')"><i class="fas fa-repeat"></i></button>
+    </div>
+    <div class="music-progress-row">
+        <span class="music-time" id="time1">2:34 / 4:12</span>
+        <div class="music-progress"><div class="music-progress-fill" id="bar1" style="width:60%"></div></div>
+    </div>
+    <div class="music-up-next">
+        <span class="up-next-label">Up next</span>
+        <span class="up-next-title">Murder She Wrote — Chaka Demus & Pliers</span>
+    </div>
+    <div class="music-expanded" id="searchPanel" style="display:none;">
+        <div class="music-search-bar">
+            <i class="fas fa-search"></i>
+            <input type="text" value="reggae classics" placeholder="Search songs...">
+            <button onclick="toggleSearch()" style="background:none;border:none;color:rgba(255,255,255,0.4);cursor:pointer;font-size:14px;padding:4px;"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="music-result-item"><div style="font-size:14px;">🎵</div><div><div class="music-result-title">Is This Love</div><div class="music-result-artist">Bob Marley & The Wailers</div></div></div>
+        <div class="music-result-item"><div style="font-size:14px;">🎵</div><div><div class="music-result-title">Red Red Wine</div><div class="music-result-artist">UB40</div></div></div>
+        <div class="music-result-item"><div style="font-size:14px;">🎵</div><div><div class="music-result-title">Stir It Up</div><div class="music-result-artist">Bob Marley</div></div></div>
+        <div class="music-result-item"><div style="font-size:14px;">🎵</div><div><div class="music-result-title">Buffalo Soldier</div><div class="music-result-artist">Bob Marley</div></div></div>
+    </div>
+</div>
+
+<!-- Fake news ticker -->
+<div class="fake-ticker">
+    <span>WSJ Business</span> Fed Holds Rates Steady as Inflation Concerns Persist &nbsp;&nbsp;•&nbsp;&nbsp;
+    <span>WSJ Markets</span> S&P 500 Closes at Record High &nbsp;&nbsp;•&nbsp;&nbsp;
+    <span>WSJ Tech</span> AI Startups See Record Funding in Q1
+</div>
+
+<script>
+let searchOpen = false;
+function toggleSearch() {
+    searchOpen = !searchOpen;
+    document.getElementById('searchPanel').style.display = searchOpen ? 'block' : 'none';
+    document.getElementById('state-label').textContent = searchOpen
+        ? 'Search open — widget grows UPWARD from bottom anchor'
+        : 'Collapsed — click Search to expand';
+}
+function togglePlay() {
+    const btn = document.getElementById('playBtn');
+    const playing = btn.innerHTML.includes('pause');
+    btn.innerHTML = playing ? '<i class="fas fa-play"></i>' : '<i class="fas fa-pause"></i>';
+}
+// Animate progress
+let pct = 60;
+setInterval(() => {
+    pct += 0.5; if (pct > 100) pct = 0;
+    document.getElementById('bar1').style.width = pct + '%';
+    const cur = Math.floor(pct / 100 * 252);
+    document.getElementById('time1').textContent = `${Math.floor(cur/60)}:${(cur%60).toString().padStart(2,'0')} / 4:12`;
+}, 500);
+</script>
+</body>
+</html>
