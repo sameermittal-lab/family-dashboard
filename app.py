@@ -47,6 +47,20 @@ log.addHandler(_ch)
 
 log.info("=== Family Dashboard starting ===")
 
+# ==================== ERROR HANDLERS ====================
+@app.errorhandler(Exception)
+def handle_exception(e):
+    log.error(f"Unhandled exception on {request.path}: {e}", exc_info=True)
+    return jsonify({"error": str(e)}), 500
+
+@app.errorhandler(404)
+def handle_404(e):
+    return jsonify({"error": "Not found"}), 404
+
+@app.errorhandler(405)
+def handle_405(e):
+    return jsonify({"error": "Method not allowed"}), 405
+
 # Global crash handler — catches unhandled exceptions that would kill the process
 import sys
 def _crash_handler(exc_type, exc_value, exc_tb):
@@ -57,13 +71,22 @@ sys.excepthook = _crash_handler
 
 # ==================== CONFIG ====================
 def load_config():
-    with open(CONFIG_PATH, "r") as f:
-        return json.load(f)
+    try:
+        with open(CONFIG_PATH, "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        log.error("CONFIG config.json not found — copy config.example.json to config.json")
+        raise
+    except (json.JSONDecodeError, ValueError) as e:
+        log.error(f"CONFIG config.json is corrupt: {e}")
+        raise
 
 def save_config(cfg):
-    log.info("CONFIG saved")
-    with open(CONFIG_PATH, "w") as f:
+    tmp = CONFIG_PATH.with_suffix(".tmp")
+    with open(tmp, "w") as f:
         json.dump(cfg, f, indent=4)
+    tmp.replace(CONFIG_PATH)
+    log.info("CONFIG saved")
 
 # ==================== NOTES ====================
 _notes_lock = threading.Lock()
@@ -198,8 +221,11 @@ def process_single_file(f):
         }
     else:
         w, h = 0, 0
-        with Image.open(f) as img:
-            w, h = img.size
+        try:
+            with Image.open(f) as img:
+                w, h = img.size
+        except Exception as e:
+            log.warning(f"PHOTOS could not open image {f.name}: {e}")
         orientation = "portrait" if h > w else "landscape"
         fx, fy = detect_face_center(str(f), w, h)
         return {
@@ -284,7 +310,11 @@ def scan_photos(photo_path, include_subfolders=True, full=False):
     log.info(f"PHOTOS scan complete: {len(final_photos)} total ({new_count} processed)")
 
 def start_scan_thread(full=False):
-    cfg = load_config()
+    try:
+        cfg = load_config()
+    except Exception as e:
+        log.error(f"PHOTOS scan aborted — could not load config: {e}")
+        return
     photo_path = cfg["photos"]["path"]
     if not photo_path:
         return
@@ -295,11 +325,15 @@ def start_scan_thread(full=False):
 def auto_scan_loop():
     """Background thread for periodic scanning."""
     while True:
-        cfg = load_config()
-        interval = cfg["photos"]["scanInterval"]
-        if interval > 0 and cfg["photos"]["path"]:
-            scan_photos(cfg["photos"]["path"], cfg["photos"]["includeSubfolders"])
-        time.sleep(max(interval * 60, 60))
+        try:
+            cfg = load_config()
+            interval = cfg["photos"]["scanInterval"]
+            if interval > 0 and cfg["photos"]["path"]:
+                scan_photos(cfg["photos"]["path"], cfg["photos"]["includeSubfolders"])
+            time.sleep(max(interval * 60, 60))
+        except Exception as e:
+            log.error(f"AUTO_SCAN loop error (will retry in 60s): {e}")
+            time.sleep(60)
 
 # Load cache on startup, then start auto-scan
 load_cached_manifest()
@@ -496,7 +530,9 @@ def get_config():
 
 @app.route("/api/config", methods=["POST"])
 def update_config():
-    cfg = request.json
+    cfg = request.get_json(silent=True)
+    if not isinstance(cfg, dict):
+        return jsonify({"ok": False, "error": "Invalid JSON body"}), 400
     save_config(cfg)
     return jsonify({"ok": True})
 
@@ -508,10 +544,13 @@ def get_photos():
         return jsonify(photo_manifest)
     cache_file = CACHE_DIR / "photo_manifest.json"
     if cache_file.exists():
-        with open(cache_file) as f:
-            cached = json.load(f)
+        try:
+            with open(cache_file) as f:
+                cached = json.load(f)
             cached["fromCache"] = True
             return jsonify(cached)
+        except Exception as e:
+            log.warning(f"PHOTOS failed to read cache file: {e}")
     return jsonify({"photos": [], "lastScan": None})
 
 @app.route("/api/photos/scan", methods=["POST"])
@@ -526,6 +565,9 @@ def serve_photo(photo_id):
     for p in photo_manifest["photos"]:
         if p["id"] == photo_id:
             filepath = p["path"]
+            if not Path(filepath).exists():
+                log.warning(f"PHOTOS file missing from disk: {filepath}")
+                return "File not found", 404
             ext = Path(filepath).suffix.lower()
             if ext in VIDEO_EXT:
                 mime = {"mp4": "video/mp4", "mov": "video/quicktime", "avi": "video/x-msvideo", "mkv": "video/x-matroska", "webm": "video/webm"}
@@ -781,7 +823,7 @@ def get_notes():
 
 @app.route("/api/notes", methods=["POST"])
 def add_note():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     notes = load_notes()
     note = {
         "id": hashlib.md5(f"{time.time()}{data.get('text','')}".encode()).hexdigest()[:10],
@@ -1168,7 +1210,7 @@ def get_volume():
 
 @app.route("/api/volume", methods=["POST"])
 def set_volume():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     vol = max(0, min(100, int(data.get("volume", 50))))
     try:
         def _set(v):
