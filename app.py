@@ -15,14 +15,28 @@ Image.MAX_IMAGE_PIXELS = None  # Disable decompression bomb limit for large phot
 import feedparser
 import requests
 
+# Register HEIF opener once at module load (was previously called per photo)
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+except ImportError:
+    pass
+
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
 
 BASE_DIR = Path(__file__).parent
 CONFIG_PATH = BASE_DIR / "config.json"
 NOTES_PATH = BASE_DIR / "notes.json"
 CACHE_DIR = BASE_DIR / "cache"
 CACHE_DIR.mkdir(exist_ok=True)
+
+# Persistent secret key — survives restart so sessions stay valid
+_SECRET_KEY_PATH = BASE_DIR / ".secret_key"
+if _SECRET_KEY_PATH.exists():
+    app.secret_key = _SECRET_KEY_PATH.read_bytes()
+else:
+    app.secret_key = os.urandom(32)
+    _SECRET_KEY_PATH.write_bytes(app.secret_key)
 
 # ==================== LOGGING ====================
 LOG_DIR = BASE_DIR / "logs"
@@ -69,6 +83,16 @@ def _crash_handler(exc_type, exc_value, exc_tb):
         h.flush()
 sys.excepthook = _crash_handler
 
+# Background-thread crash handler (Python 3.8+) — main excepthook does not cover threads
+def _thread_crash_handler(args):
+    log.critical(
+        f"THREAD CRASH in {args.thread.name}: {args.exc_type.__name__}: {args.exc_value}",
+        exc_info=(args.exc_type, args.exc_value, args.exc_traceback),
+    )
+    for h in log.handlers:
+        h.flush()
+threading.excepthook = _thread_crash_handler
+
 # ==================== CONFIG ====================
 def load_config():
     try:
@@ -80,6 +104,8 @@ def load_config():
     except (json.JSONDecodeError, ValueError) as e:
         log.error(f"CONFIG config.json is corrupt: {e}")
         raise
+
+_REQUIRED_CONFIG_KEYS = {"photos", "weather", "news", "calendar", "commute"}
 
 def save_config(cfg):
     tmp = CONFIG_PATH.with_suffix(".tmp")
@@ -116,6 +142,8 @@ def save_notes(notes):
 
 # ==================== PHOTO SCANNER ====================
 photo_manifest = {"photos": [], "lastScan": None, "scanning": False}
+_manifest_lock = threading.Lock()
+_scan_lock = threading.Lock()
 
 # Face detection setup
 _face_cascade = None
@@ -162,15 +190,15 @@ VIDEO_EXT = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
 
 def load_cached_manifest():
     """Load manifest from disk cache on startup."""
-    global photo_manifest
     cache_file = CACHE_DIR / "photo_manifest.json"
     if cache_file.exists():
         try:
             with open(cache_file) as f:
                 cached = json.load(f)
-            photo_manifest["photos"] = cached.get("photos", [])
-            photo_manifest["lastScan"] = cached.get("lastScan")
-            photo_manifest["scanning"] = False
+            with _manifest_lock:
+                photo_manifest["photos"] = cached.get("photos", [])
+                photo_manifest["lastScan"] = cached.get("lastScan")
+                photo_manifest["scanning"] = False
             log.info(f"PHOTOS loaded {len(photo_manifest['photos'])} photos from cache")
         except Exception as e:
             log.warning(f"PHOTOS failed to load cache: {e}")
@@ -178,12 +206,15 @@ def load_cached_manifest():
 def save_manifest():
     """Save current manifest to disk."""
     cache_file = CACHE_DIR / "photo_manifest.json"
-    save_data = {
-        "photos": photo_manifest["photos"],
-        "lastScan": photo_manifest["lastScan"]
-    }
-    with open(cache_file, "w") as cf:
+    with _manifest_lock:
+        save_data = {
+            "photos": list(photo_manifest["photos"]),
+            "lastScan": photo_manifest["lastScan"],
+        }
+    tmp = cache_file.with_suffix(".tmp")
+    with open(tmp, "w") as cf:
         json.dump(save_data, cf)
+    tmp.replace(cache_file)
 
 def process_single_file(f):
     """Process a single file — get dimensions, orientation, face detection."""
@@ -200,13 +231,11 @@ def process_single_file(f):
     elif ext in HEIC_EXT:
         w, h, orientation = 0, 0, "landscape"
         try:
-            from pillow_heif import register_heif_opener
-            register_heif_opener()
             with Image.open(f) as img:
                 w, h = img.size
                 orientation = "portrait" if h > w else "landscape"
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning(f"PHOTOS could not open HEIC {f.name}: {e}")
         fx, fy = detect_face_center(str(f), w, h)
         return {
             "path": str(f), "name": f.name, "mtime": mtime,
@@ -236,78 +265,80 @@ def process_single_file(f):
 
 def scan_photos(photo_path, include_subfolders=True, full=False):
     """Incremental scan — only processes new/changed files."""
-    global photo_manifest
-    photo_manifest["scanning"] = True
-    photo_manifest["scanProgress"] = 0
-    photo_manifest["scanTotal"] = 0
-
-    path = Path(photo_path)
-    if not path.exists():
-        photo_manifest["scanning"] = False
-        photo_manifest["error"] = "Path not found"
+    if not _scan_lock.acquire(blocking=False):
+        log.info("PHOTOS scan already in progress — skipping")
         return
+    try:
+        photo_manifest["scanning"] = True
+        photo_manifest["scanProgress"] = 0
+        photo_manifest["scanTotal"] = 0
 
-    # Build lookup of existing cached photos by path
-    if full:
-        cached_lookup = {}
-    else:
-        cached_lookup = {p["path"]: p for p in photo_manifest.get("photos", [])}
+        path = Path(photo_path)
+        if not path.exists():
+            photo_manifest["error"] = "Path not found"
+            return
 
-    # Get all current files on disk
-    pattern = "**/*" if include_subfolders else "*"
-    all_files = [f for f in path.glob(pattern) if f.suffix.lower() in (SUPPORTED_EXT | VIDEO_EXT) and f.is_file()]
-    current_paths = set()
-    to_process = []
+        # Build lookup of existing cached photos by path
+        if full:
+            cached_lookup = {}
+        else:
+            with _manifest_lock:
+                cached_lookup = {p["path"]: p for p in photo_manifest.get("photos", [])}
 
-    for f in all_files:
-        fpath = str(f)
-        current_paths.add(fpath)
-        cached = cached_lookup.get(fpath)
-        if cached:
-            # Check if file was modified
+        # Get all current files on disk
+        pattern = "**/*" if include_subfolders else "*"
+        all_files = [f for f in path.glob(pattern) if f.suffix.lower() in (SUPPORTED_EXT | VIDEO_EXT) and f.is_file()]
+        to_process = []
+
+        for f in all_files:
+            fpath = str(f)
+            cached = cached_lookup.get(fpath)
+            if cached:
+                try:
+                    mtime = os.path.getmtime(fpath)
+                    if cached.get("mtime") == mtime:
+                        continue  # Unchanged, skip
+                except Exception:
+                    continue
+            to_process.append(f)
+
+        photo_manifest["scanTotal"] = len(to_process)
+        new_count = len(to_process)
+        log.info(f"PHOTOS found {len(all_files)} files, {new_count} new/changed to process")
+
+        # Process new/changed files
+        new_photos = {}
+        for idx, f in enumerate(to_process):
+            photo_manifest["scanProgress"] = idx + 1
             try:
-                mtime = os.path.getmtime(fpath)
-                if cached.get("mtime") == mtime:
-                    continue  # Unchanged, skip
-            except Exception:
+                entry = process_single_file(f)
+                new_photos[entry["path"]] = entry
+            except Exception as e:
+                log.warning(f"PHOTOS error processing {f.name}: {e}")
                 continue
-        to_process.append(f)
 
-    photo_manifest["scanTotal"] = len(to_process)
-    new_count = len(to_process)
-    log.info(f"PHOTOS found {len(all_files)} files, {new_count} new/changed to process")
+        # Build final list: keep unchanged cached entries + add new/updated ones
+        final_photos = []
+        for f in all_files:
+            fpath = str(f)
+            if fpath in new_photos:
+                final_photos.append(new_photos[fpath])
+            elif fpath in cached_lookup:
+                final_photos.append(cached_lookup[fpath])
 
-    # Process new/changed files
-    new_photos = {}
-    for idx, f in enumerate(to_process):
-        photo_manifest["scanProgress"] = idx + 1
-        try:
-            entry = process_single_file(f)
-            new_photos[entry["path"]] = entry
-        except Exception as e:
-            log.warning(f"PHOTOS error processing {f.name}: {e}")
-            continue
+        removed = len(cached_lookup) - (len(final_photos) - new_count)
+        if removed > 0:
+            log.info(f"PHOTOS removed {removed} deleted files from manifest")
 
-    # Build final list: keep unchanged cached entries + add new/updated ones
-    final_photos = []
-    for f in all_files:
-        fpath = str(f)
-        if fpath in new_photos:
-            final_photos.append(new_photos[fpath])
-        elif fpath in cached_lookup:
-            final_photos.append(cached_lookup[fpath])
-
-    # Remove deleted files (anything in cache but not on disk is already excluded)
-    removed = len(cached_lookup) - (len(final_photos) - new_count)
-    if removed > 0:
-        log.info(f"PHOTOS removed {removed} deleted files from manifest")
-
-    photo_manifest["photos"] = final_photos
-    photo_manifest["lastScan"] = time.strftime("%Y-%m-%d %H:%M:%S")
-    photo_manifest["scanning"] = False
-    photo_manifest.pop("error", None)
-    save_manifest()
-    log.info(f"PHOTOS scan complete: {len(final_photos)} total ({new_count} processed)")
+        with _manifest_lock:
+            photo_manifest["photos"] = final_photos
+            photo_manifest["lastScan"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            photo_manifest.pop("error", None)
+        save_manifest()
+        log.info(f"PHOTOS scan complete: {len(final_photos)} total ({new_count} processed)")
+    finally:
+        photo_manifest["scanning"] = False
+        _scan_lock.release()
 
 def start_scan_thread(full=False):
     try:
@@ -317,6 +348,9 @@ def start_scan_thread(full=False):
         return
     photo_path = cfg["photos"]["path"]
     if not photo_path:
+        return
+    if photo_manifest.get("scanning"):
+        log.info("PHOTOS scan already running — not spawning new thread")
         return
     include_sub = cfg["photos"]["includeSubfolders"]
     t = threading.Thread(target=scan_photos, args=(photo_path, include_sub, full), daemon=True)
@@ -410,6 +444,8 @@ def fetch_news(feeds):
             continue
         try:
             feed = feedparser.parse(feed_url)
+            if getattr(feed, "bozo", 0) and getattr(feed, "bozo_exception", None):
+                log.warning(f"NEWS feed parse warning for {feed_url}: {feed.bozo_exception}")
             source = feed.feed.get("title", "News")
             # Shorten common source names
             if "WSJ" in source or "Wall Street" in source:
@@ -485,7 +521,8 @@ def fetch_calendar_events(days=3):
             maxResults=50, singleEvents=True, orderBy="startTime"
         ).execute()
         return result.get("items", [])
-    except Exception:
+    except Exception as e:
+        log.warning(f"CALENDAR fetch_calendar_events error: {e}")
         return []
 
 # ==================== COMMUTE ====================
@@ -511,8 +548,10 @@ def fetch_commute(origin, destination, api_key):
                 "distance": leg["distance"]["text"],
                 "summary": resp["routes"][0]["summary"]
             }
-    except Exception:
-        pass
+        else:
+            log.warning(f"COMMUTE non-OK status from Directions API: {resp.get('status')}")
+    except Exception as e:
+        log.warning(f"COMMUTE fetch error: {e}")
     return None
 
 # ==================== ROUTES ====================
@@ -530,18 +569,41 @@ def get_config():
 
 @app.route("/api/config", methods=["POST"])
 def update_config():
-    cfg = request.get_json(silent=True)
-    if not isinstance(cfg, dict):
+    incoming = request.get_json(silent=True)
+    if not isinstance(incoming, dict):
         return jsonify({"ok": False, "error": "Invalid JSON body"}), 400
-    save_config(cfg)
+    try:
+        current = load_config()
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Could not load existing config: {e}"}), 500
+    # Deep-merge incoming into current so a partial POST cannot wipe sections
+    def deep_merge(base, override):
+        for k, v in override.items():
+            if isinstance(v, dict) and isinstance(base.get(k), dict):
+                deep_merge(base[k], v)
+            else:
+                base[k] = v
+    deep_merge(current, incoming)
+    missing = _REQUIRED_CONFIG_KEYS - set(current.keys())
+    if missing:
+        return jsonify({"ok": False, "error": f"Missing required keys: {sorted(missing)}"}), 400
+    save_config(current)
     return jsonify({"ok": True})
 
 @app.route("/api/photos")
 def get_photos():
-    log.debug(f"PHOTOS serving manifest: {len(photo_manifest.get('photos', []))} photos, scanning={photo_manifest.get('scanning')}")
-    # Try live manifest, fall back to cache
-    if photo_manifest["photos"]:
-        return jsonify(photo_manifest)
+    with _manifest_lock:
+        snapshot = {
+            "photos": list(photo_manifest.get("photos", [])),
+            "lastScan": photo_manifest.get("lastScan"),
+            "scanning": photo_manifest.get("scanning", False),
+            "scanProgress": photo_manifest.get("scanProgress", 0),
+            "scanTotal": photo_manifest.get("scanTotal", 0),
+            "error": photo_manifest.get("error"),
+        }
+    log.debug(f"PHOTOS serving manifest: {len(snapshot['photos'])} photos, scanning={snapshot['scanning']}")
+    if snapshot["photos"]:
+        return jsonify(snapshot)
     cache_file = CACHE_DIR / "photo_manifest.json"
     if cache_file.exists():
         try:
@@ -562,43 +624,41 @@ def trigger_scan():
 
 @app.route("/api/photo/<photo_id>")
 def serve_photo(photo_id):
-    for p in photo_manifest["photos"]:
-        if p["id"] == photo_id:
-            filepath = p["path"]
-            if not Path(filepath).exists():
-                log.warning(f"PHOTOS file missing from disk: {filepath}")
-                return "File not found", 404
-            ext = Path(filepath).suffix.lower()
-            if ext in VIDEO_EXT:
-                mime = {"mp4": "video/mp4", "mov": "video/quicktime", "avi": "video/x-msvideo", "mkv": "video/x-matroska", "webm": "video/webm"}
-                return send_file(filepath, mimetype=mime.get(ext.lstrip("."), "video/mp4"))
-            if ext in HEIC_EXT:
-                cache_path = CACHE_DIR / f"{photo_id}.jpg"
-                if not cache_path.exists():
-                    try:
-                        from pillow_heif import register_heif_opener
-                        register_heif_opener()
-                        img = Image.open(filepath)
-                        img.save(str(cache_path), "JPEG", quality=90)
-                        img.close()
-                    except Exception as e:
-                        return f"Error converting HEIC: {e}", 500
-                return send_file(str(cache_path), mimetype="image/jpeg")
-            if ext in RAW_EXT:
-                # Convert RAW to JPEG on the fly, cache it
-                cache_path = CACHE_DIR / f"{photo_id}.jpg"
-                if not cache_path.exists():
-                    try:
-                        import rawpy
-                        with rawpy.imread(filepath) as raw:
-                            rgb = raw.postprocess()
-                        img = Image.fromarray(rgb)
-                        img.save(str(cache_path), "JPEG", quality=85)
-                    except Exception as e:
-                        return f"Error converting RAW: {e}", 500
-                return send_file(str(cache_path), mimetype="image/jpeg")
-            return send_file(filepath, mimetype="image/jpeg")
-    return "Not found", 404
+    with _manifest_lock:
+        match = next((p for p in photo_manifest["photos"] if p["id"] == photo_id), None)
+    if match is None:
+        return "Not found", 404
+    filepath = match["path"]
+    if not Path(filepath).exists():
+        log.warning(f"PHOTOS file missing from disk: {filepath}")
+        return "File not found", 404
+    ext = Path(filepath).suffix.lower()
+    if ext in VIDEO_EXT:
+        mime = {"mp4": "video/mp4", "mov": "video/quicktime", "avi": "video/x-msvideo", "mkv": "video/x-matroska", "webm": "video/webm"}
+        return send_file(filepath, mimetype=mime.get(ext.lstrip("."), "video/mp4"))
+    if ext in HEIC_EXT:
+        cache_path = CACHE_DIR / f"{photo_id}.jpg"
+        if not cache_path.exists():
+            try:
+                img = Image.open(filepath)
+                img.save(str(cache_path), "JPEG", quality=90)
+                img.close()
+            except Exception as e:
+                return f"Error converting HEIC: {e}", 500
+        return send_file(str(cache_path), mimetype="image/jpeg")
+    if ext in RAW_EXT:
+        cache_path = CACHE_DIR / f"{photo_id}.jpg"
+        if not cache_path.exists():
+            try:
+                import rawpy
+                with rawpy.imread(filepath) as raw:
+                    rgb = raw.postprocess()
+                img = Image.fromarray(rgb)
+                img.save(str(cache_path), "JPEG", quality=85)
+            except Exception as e:
+                return f"Error converting RAW: {e}", 500
+        return send_file(str(cache_path), mimetype="image/jpeg")
+    return send_file(filepath, mimetype="image/jpeg")
 
 @app.route("/api/browse")
 def browse_folder():
@@ -771,10 +831,13 @@ def get_stocks():
             continue
         try:
             feed = feedparser.parse(feed_url)
+            if getattr(feed, "bozo", 0) and getattr(feed, "bozo_exception", None):
+                log.warning(f"STOCKS feed parse warning for {feed_url}: {feed.bozo_exception}")
             source = feed.feed.get("title", "Stocks")
             for entry in feed.entries[:15]:
                 articles.append({"source": source, "title": entry.get("title", "")})
-        except Exception:
+        except Exception as e:
+            log.warning(f"STOCKS error fetching {feed_url}: {e}")
             continue
     random.shuffle(articles)
     stock_cache["articles"] = articles[:30]
@@ -862,7 +925,7 @@ def pin_note(note_id):
 def oauth_start():
     log.info("OAUTH starting Google Calendar authorization")
     if not CREDENTIALS_FILE.exists():
-        return jsonify({"error": "credentials.json not found. Place it in the app folder."})
+        return jsonify({"error": "credentials.json not found. Place it in the app folder."}), 400
     try:
         import hashlib, base64, secrets
         with open(CREDENTIALS_FILE) as f:
@@ -895,7 +958,8 @@ def oauth_start():
         )
         return redirect(auth_url)
     except Exception as e:
-        return f"OAuth error: {e}"
+        log.error(f"OAUTH start error: {e}")
+        return f"OAuth error: {e}", 500
 
 @app.route("/oauth/callback")
 def oauth_callback():
@@ -946,16 +1010,17 @@ def oauth_callback():
         return redirect("/")
     except Exception as e:
         log.error(f"OAUTH callback error: {e}")
-        return f"OAuth error: {e}"
+        return f"OAuth error: {e}", 500
 
 # ==================== VOICE ASSISTANT (GEMINI) ====================
 voice_history = []
+_voice_lock = threading.Lock()
 
 @app.route("/api/voice", methods=["POST"])
 def voice_command():
     global voice_history
     try:
-        data = request.json
+        data = request.get_json(silent=True) or {}
         user_text = data.get("text", "")
         if not user_text:
             return jsonify({"error": "No text provided"})
@@ -995,8 +1060,8 @@ def voice_command():
                 start = ev.get("start", {}).get("dateTime", ev.get("start", {}).get("date", ""))
                 summary = ev.get("summary", "No title")
                 context_parts.append(f"Calendar: {summary} at {start}")
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning(f"VOICE could not load calendar context: {e}")
 
         # Notes
         notes = load_notes()
@@ -1038,9 +1103,11 @@ IMPORTANT: Respond ONLY with valid JSON in this format:
 
 Keep responses natural, warm, and concise (1-3 sentences). You can answer general knowledge questions too using action "none"."""
 
-        # Build messages with history
+        # Build messages with history (snapshot under lock)
+        with _voice_lock:
+            history_snapshot = list(voice_history[-10:])
         messages = []
-        for h in voice_history[-10:]:
+        for h in history_snapshot:
             messages.append({"role": "user", "parts": [{"text": h["user"]}]})
             messages.append({"role": "model", "parts": [{"text": h["ai"]}]})
         messages.append({"role": "user", "parts": [{"text": user_text}]})
@@ -1061,9 +1128,10 @@ Keep responses natural, warm, and concise (1-3 sentences). You can answer genera
             result = {"speech": ai_text, "action": "none"}
 
         # Store in history
-        voice_history.append({"user": user_text, "ai": json.dumps(result)})
-        if len(voice_history) > 20:
-            voice_history = voice_history[-10:]
+        with _voice_lock:
+            voice_history.append({"user": user_text, "ai": json.dumps(result)})
+            if len(voice_history) > 20:
+                voice_history = voice_history[-10:]
 
         log.info(f"VOICE response: action={result.get('action')}, speech='{result.get('speech', '')[:80]}'")
         return jsonify(result)
@@ -1075,7 +1143,8 @@ Keep responses natural, warm, and concise (1-3 sentences). You can answer genera
 @app.route("/api/voice/reset", methods=["POST"])
 def voice_reset():
     global voice_history
-    voice_history = []
+    with _voice_lock:
+        voice_history = []
     log.info("VOICE history reset")
     return jsonify({"ok": True})
 
@@ -1084,6 +1153,9 @@ def voice_reset():
 def network_status():
     cfg = load_config()
     import socket
+    with _manifest_lock:
+        photo_count = len(photo_manifest.get("photos", []))
+        scanning = photo_manifest.get("scanning", False)
     status = {
         "internet": False,
         "nas": False,
@@ -1094,7 +1166,7 @@ def network_status():
         "commute": {"ok": False, "error": ""},
         "youtube": {"ok": False, "error": ""},
         "voice": {"ok": False, "error": ""},
-        "photos": {"ok": False, "count": len(photo_manifest.get("photos", [])), "scanning": photo_manifest.get("scanning", False)}
+        "photos": {"ok": False, "count": photo_count, "scanning": scanning}
     }
 
     # IP address
@@ -1117,10 +1189,10 @@ def network_status():
     nas_path = cfg.get("photos", {}).get("path", "")
     if nas_path:
         status["nas"] = Path(nas_path).exists()
-        status["photos"]["ok"] = status["nas"] and len(photo_manifest.get("photos", [])) > 0
+        status["photos"]["ok"] = status["nas"] and photo_count > 0
     else:
         status["nas"] = True
-        status["photos"]["ok"] = len(photo_manifest.get("photos", [])) > 0
+        status["photos"]["ok"] = photo_count > 0
 
     # Weather
     wd = weather_cache.get("data")
@@ -1169,21 +1241,11 @@ def network_status():
 # ==================== SYSTEM VOLUME ====================
 def _get_volume_interface():
     """Get Windows audio endpoint volume interface using pycaw."""
-    import comtypes
-    comtypes.CoInitialize()
-    from pycaw.pycaw import AudioUtilities
-    import pycaw.pycaw as pycaw_mod
-    speakers = AudioUtilities.GetSpeakers()
-    obj = speakers
-    for attr in ['Activate', '_dev', 'iunknown']:
-        if hasattr(obj, 'Activate'):
-            break
-        if hasattr(obj, attr):
-            obj = getattr(obj, attr)
+    from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
     from ctypes import cast, POINTER
     from comtypes import CLSCTX_ALL
-    from pycaw.pycaw import IAudioEndpointVolume
-    interface = obj.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+    speakers = AudioUtilities.GetSpeakers()
+    interface = speakers.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
     return cast(interface, POINTER(IAudioEndpointVolume))
 
 def _with_volume(fn):
@@ -1272,5 +1334,10 @@ if __name__ == "__main__":
         start_scan_thread()
     
     os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"  # Allow HTTP for localhost OAuth
-    log.info("SERVER starting on http://0.0.0.0:5000")
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    log.info("SERVER starting on http://0.0.0.0:5000 (waitress, 8 threads)")
+    try:
+        from waitress import serve
+        serve(app, host="0.0.0.0", port=5000, threads=8)
+    except ImportError:
+        log.warning("SERVER waitress not installed, falling back to Flask dev server")
+        app.run(host="0.0.0.0", port=5000, debug=False)

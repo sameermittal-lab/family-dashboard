@@ -10,3 +10,4 @@ pillow-heif>=0.18.0
 opencv-python-headless>=4.9.0
 google-genai>=1.0.0
 pycaw>=20230407
+waitress>=3.0.0
