@@ -442,11 +442,6 @@ _NEWS_PER_FEED_LIMIT = 20
 # Final cap after dedup + sort
 _NEWS_FINAL_CAP = 40
 
-def _normalize_title(title):
-    """Lowercase, collapse whitespace, strip punctuation for dedup matching."""
-    import re
-    return re.sub(r"[^\w\s]", "", (title or "").lower()).strip()
-
 def _entry_timestamp(entry):
     """Best-effort timestamp from a feedparser entry. Returns epoch float, or None."""
     import calendar
@@ -513,28 +508,16 @@ def fetch_news(feeds):
             log.warning(f"NEWS error fetching {feed_url}: {e}")
             continue
 
-    # Dedup by normalized title — keep first occurrence
-    seen = set()
-    deduped = []
-    for a in articles:
-        key = _normalize_title(a["title"])
-        if not key or key in seen:
-            continue
-        seen.add(key)
-        deduped.append(a)
-
-    dropped = len(articles) - len(deduped)
-
     # Split into dated and undated; sort dated newest-first, append undated shuffled
-    dated = [a for a in deduped if a["_ts"] > 0]
-    undated = [a for a in deduped if a["_ts"] == 0]
+    dated = [a for a in articles if a["_ts"] > 0]
+    undated = [a for a in articles if a["_ts"] == 0]
     dated.sort(key=lambda a: a["_ts"], reverse=True)
     random.shuffle(undated)
     final = (dated + undated)[:_NEWS_FINAL_CAP]
     for a in final:
         a.pop("_ts", None)
 
-    log.info(f"NEWS fetched {len(final)} articles ({dropped} dups dropped) from {len(feeds)} feeds")
+    log.info(f"NEWS fetched {len(final)} articles from {len(feeds)} feeds")
 
     # Don't poison cache with empty result — let next call retry sooner
     if final:
@@ -928,18 +911,8 @@ def get_stocks():
             log.warning(f"STOCKS error fetching {feed_url}: {e}")
             continue
 
-    # Dedup by normalized title
-    seen = set()
-    deduped = []
-    for a in articles:
-        key = _normalize_title(a["title"])
-        if not key or key in seen:
-            continue
-        seen.add(key)
-        deduped.append(a)
-
-    random.shuffle(deduped)
-    final = deduped[:30]
+    random.shuffle(articles)
+    final = articles[:30]
     if final:
         stock_cache["articles"] = final
         stock_cache["lastFetch"] = time.time()
