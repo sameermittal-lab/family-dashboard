@@ -107,19 +107,25 @@ li { margin-bottom: 6px; }
 <h3>Step 2: Install Dependencies</h3>
 <pre><code>cd D:\family-dashboard
 py -m pip install -r requirements.txt</code></pre>
+<div class="note">If you upgrade an existing install (e.g., <code>git pull</code>) and see <code>ModuleNotFoundError</code>, re-run this step — new releases occasionally add packages.</div>
 
-<h3>Step 3: Run the App</h3>
+<h3>Step 3: First-Time Config</h3>
+<p>Copy the example config to create your own:</p>
+<pre><code>copy config.example.json config.json</code></pre>
+<p>You can leave the defaults for now — every setting is editable in the in-app Settings panel.</p>
+
+<h3>Step 4: Run the App</h3>
 <pre><code>py app.py</code></pre>
-<p>Open Chrome and navigate to <code>http://localhost:5000</code>. Press <code>F11</code> for fullscreen.</p>
+<p>The server runs under <code>waitress</code> on port 5000. Open Chrome and navigate to <code>http://localhost:5000</code>. Press <code>F11</code> for fullscreen.</p>
 
-<h3>Step 4: Configure</h3>
+<h3>Step 5: Configure</h3>
 <p>Click the gear icon (bottom-right, hover to reveal) to open Settings. Set your photo folder path and configure widgets.</p>
 
-<h3>Step 5: Auto-Start on Boot (Optional)</h3>
+<h3>Step 6: Auto-Start on Boot (Optional)</h3>
 <p>Double-click <code>setup.bat</code> to create a Windows startup shortcut. The app will launch automatically on login.</p>
 <p>Or use <code>start.bat</code> to manually launch the server + Chrome in kiosk mode.</p>
 
-<h3>Step 6: Remote Control</h3>
+<h3>Step 7: Remote Control</h3>
 <p>From any device on the same network, open <code>http://&lt;your-pc-ip&gt;:5000/remote</code> to access the phone remote.</p>
 
 <h2 id="google-setup">5. Google Cloud Setup</h2>
@@ -232,12 +238,14 @@ py -m pip install -r requirements.txt</code></pre>
 <tr><th>Setting</th><th>Description</th><th>Default</th></tr>
 <tr><td>show</td><td>Show/hide news</td><td>true</td></tr>
 <tr><td>style</td><td>ticker (scrolling) or cards (stacked)</td><td>ticker</td></tr>
-<tr><td>height</td><td>Ticker bar height in pixels</td><td>58</td></tr>
-<tr><td>fontSize</td><td>Headline font size in pixels</td><td>18</td></tr>
-<tr><td>speed</td><td>Scroll speed: 60 (slow), 40 (normal), 25 (fast), 15 (very fast)</td><td>40</td></tr>
+<tr><td>height</td><td>Ticker bar height in pixels</td><td>42</td></tr>
+<tr><td>fontSize</td><td>Headline font size in pixels</td><td>14</td></tr>
+<tr><td>speed</td><td>Scroll speed in pixels per second (slider in Settings)</td><td>150</td></tr>
+<tr><td>font</td><td>Ticker font family</td><td>Outfit</td></tr>
 <tr><td>feeds</td><td>Array of RSS feed URLs</td><td>WSJ feeds</td></tr>
 <tr><td>refreshInterval</td><td>Minutes between feed refreshes</td><td>15</td></tr>
 </table>
+<div class="note">News articles are sorted newest-first (within 24 hours) and the cache is kept warm by a background thread, so refreshing the dashboard always shows recent items. Empty fetches don't poison the cache — if all feeds fail, the next call retries instead of caching an empty result.</div>
 
 <h3>Commute</h3>
 <table>
@@ -268,17 +276,22 @@ py -m pip install -r requirements.txt</code></pre>
 
 <h3>File Structure</h3>
 <pre><code>family-dashboard/
-├── app.py                  # Flask backend server
+├── app.py                  # Flask backend (served by waitress in production)
 ├── config.json             # All settings (auto-saved)
 ├── credentials.json        # Google OAuth credentials (you provide)
 ├── token.json              # Google OAuth token (auto-generated)
+├── .secret_key             # Persisted Flask session key (auto-generated)
 ├── notes.json              # Saved notes (auto-generated)
 ├── requirements.txt        # Python dependencies
 ├── setup.bat               # Windows auto-start installer
 ├── start.bat               # Manual launch script
+├── CHANGELOG.md            # Version history
+├── CLAUDE.md               # Onboarding notes for AI coding agents / contributors
 ├── cache/
 │   ├── photo_manifest.json # Cached photo list with face data
 │   └── *.jpg               # Cached RAW/HEIC conversions
+├── logs/
+│   └── dashboard.log       # Rotating log file (5 MB × 3)
 ├── static/
 │   ├── app.js              # Frontend application logic
 │   └── styles.css          # UI styles
@@ -296,8 +309,9 @@ py -m pip install -r requirements.txt</code></pre>
 <li><strong>Slideshow:</strong> Frontend cycles through manifest, renders <code>&lt;img&gt;</code> or <code>&lt;video&gt;</code> elements with <code>object-fit: cover</code> and <code>object-position</code> based on face detection data.</li>
 <li><strong>Settings:</strong> Frontend reads/writes <code>/api/config</code> → Flask persists to <code>config.json</code> → changes apply live without page reload.</li>
 <li><strong>Weather:</strong> Backend fetches from Open-Meteo API every 10 minutes, caches response.</li>
-<li><strong>News:</strong> Backend fetches RSS feeds, parses with feedparser, shuffles articles from all sources.</li>
+<li><strong>News:</strong> Backend fetches RSS feeds with conditional GET (etag/If-Modified-Since), drops articles older than 24h, sorts newest-first, and caches the result. A background thread keeps the cache warm based on the configured refresh interval.</li>
 <li><strong>Calendar:</strong> Agenda view uses Google Calendar API (OAuth). Week/month views use Google Calendar embed iframe.</li>
+<li><strong>Server:</strong> Production runs under <code>waitress</code> (8 threads) so a slow request — HEIC conversion, voice command, weather timeout — doesn't block other endpoints. Falls back to the Flask dev server only if waitress isn't installed.</li>
 </ol>
 
 <h3>Supported File Formats</h3>
@@ -385,8 +399,17 @@ py -m pip install -r requirements.txt</code></pre>
 <h3>Calendar shows "Connected" but no events</h3>
 <ul>
 <li>Open <code>http://localhost:5000/api/calendar</code> to check the raw response</li>
-<li>Check the terminal for <code>[CALENDAR] Error:</code> messages</li>
-<li>The token may have expired — try disconnecting and reconnecting</li>
+<li>Check <code>logs/dashboard.log</code> for <code>CALENDAR</code> warnings</li>
+<li>If the log shows <code>invalid_grant: Bad Request</code>, the refresh token has been revoked (long inactivity, Google password change, or scope change). Visit <code>http://localhost:5000/oauth/start</code> in any browser to re-authorize</li>
+<li>The token may have expired — try disconnecting and reconnecting via Settings → Google Calendar</li>
+</ul>
+
+<h3>News ticker shows the same articles</h3>
+<ul>
+<li>Articles are sorted newest-first and anything older than 24 hours is dropped — if you only see a handful, your feeds may not have published recent items</li>
+<li>The ticker visually loops the cached set between refreshes (default 15 minutes), which is normal — the loop is for seamless scrolling, not new content</li>
+<li>Force a fresh fetch: open <code>http://localhost:5000/api/news?force=true</code></li>
+<li>Check <code>logs/dashboard.log</code> for <code>NEWS fetched N articles</code> — that line appears each refresh and lets you see the live count</li>
 </ul>
 
 <h3>Videos not playing audio</h3>
@@ -437,6 +460,7 @@ py -m pip install -r requirements.txt</code></pre>
 <tr><td><code>M</code></td><td>Activate Voice Command (push-to-talk)</td></tr>
 <tr><td><code>Escape</code></td><td>Close all panels</td></tr>
 <tr><td><code>→</code> (Right Arrow)</td><td>Skip to next photo</td></tr>
+<tr><td><code>←</code> (Left Arrow)</td><td>Go to previous photo</td></tr>
 <tr><td><code>F11</code></td><td>Toggle Chrome fullscreen</td></tr>
 <tr><td><code>Alt+F4</code></td><td>Exit kiosk mode</td></tr>
 </table>
@@ -605,7 +629,7 @@ py -m pip install -r requirements.txt</code></pre>
 </ul>
 <p>All actions execute on the dashboard in real-time via the Gemini voice API.</p>
 
-<p style="margin-top:40px;color:#999;font-size:12px;">Family Dashboard v2.1 — Updated April 2026 — Playback Controls, System Volume, Service Status, Smart Scaling</p>
+<p style="margin-top:40px;color:#999;font-size:12px;">Family Dashboard v2.2 — Updated May 2026 — waitress production server, news pipeline (newest-first, conditional GET, background refresh), portrait-pair slideshow fix, persisted session key, hardened concurrency.</p>
 
 </div>
 </body>
