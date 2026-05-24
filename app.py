@@ -433,44 +433,132 @@ def fetch_weather(cfg):
 
 # ==================== NEWS ====================
 news_cache = {"articles": [], "lastFetch": 0}
+# Per-feed conditional-GET state: {feed_url: {"etag": str, "modified": str}}
+_news_feed_state = {}
+# Articles older than this are dropped
+_NEWS_MAX_AGE_SECONDS = 24 * 3600
+# Pull this many entries per feed before dedup/sort/cap
+_NEWS_PER_FEED_LIMIT = 20
+# Final cap after dedup + sort
+_NEWS_FINAL_CAP = 40
+
+def _normalize_title(title):
+    """Lowercase, collapse whitespace, strip punctuation for dedup matching."""
+    import re
+    return re.sub(r"[^\w\s]", "", (title or "").lower()).strip()
+
+def _entry_timestamp(entry):
+    """Best-effort timestamp from a feedparser entry. Returns epoch float, or None."""
+    import calendar
+    for key in ("published_parsed", "updated_parsed", "created_parsed"):
+        ts = entry.get(key)
+        if ts:
+            try:
+                return calendar.timegm(ts)
+            except Exception:
+                continue
+    return None
 
 def fetch_news(feeds):
-    """Fetch and merge RSS feeds."""
+    """Fetch, dedup, sort, and merge RSS feeds. Newest first; stale dropped."""
     import random
     articles = []
+    now = time.time()
+
     for feed_url in feeds:
         feed_url = feed_url.strip()
         if not feed_url:
             continue
         try:
-            feed = feedparser.parse(feed_url)
+            state = _news_feed_state.get(feed_url, {})
+            feed = feedparser.parse(feed_url, etag=state.get("etag"), modified=state.get("modified"))
+
+            # 304 Not Modified — reuse what we already have for this feed
+            if getattr(feed, "status", 0) == 304:
+                log.debug(f"NEWS 304 not-modified for {feed_url}")
+                continue
+
             if getattr(feed, "bozo", 0) and getattr(feed, "bozo_exception", None):
                 log.warning(f"NEWS feed parse warning for {feed_url}: {feed.bozo_exception}")
+
+            # Update conditional-GET state for next call
+            new_state = {}
+            if getattr(feed, "etag", None):
+                new_state["etag"] = feed.etag
+            if getattr(feed, "modified", None):
+                new_state["modified"] = feed.modified
+            if new_state:
+                _news_feed_state[feed_url] = new_state
+
             source = feed.feed.get("title", "News")
-            # Shorten common source names
             if "WSJ" in source or "Wall Street" in source:
-                # Differentiate WSJ feeds by URL
                 if "WorldNews" in feed_url: source = "WSJ World"
                 elif "Markets" in feed_url: source = "WSJ Markets"
                 elif "RSSWSJD" in feed_url: source = "WSJ Tech"
                 elif "USBusiness" in feed_url: source = "WSJ Business"
                 else: source = "WSJ"
-            for entry in feed.entries[:10]:
+
+            for entry in feed.entries[:_NEWS_PER_FEED_LIMIT]:
+                ts = _entry_timestamp(entry)
+                if ts is not None and (now - ts) > _NEWS_MAX_AGE_SECONDS:
+                    continue
                 articles.append({
                     "source": source,
                     "title": entry.get("title", ""),
                     "link": entry.get("link", ""),
                     "published": entry.get("published", ""),
+                    "_ts": ts if ts is not None else 0,
                 })
         except Exception as e:
             log.warning(f"NEWS error fetching {feed_url}: {e}")
             continue
-    # Shuffle so all feeds are mixed together
-    random.shuffle(articles)
-    log.info(f"NEWS fetched {len(articles)} articles from {len(feeds)} feeds")
-    news_cache["articles"] = articles[:40]
-    news_cache["lastFetch"] = time.time()
-    return articles[:40]
+
+    # Dedup by normalized title — keep first occurrence
+    seen = set()
+    deduped = []
+    for a in articles:
+        key = _normalize_title(a["title"])
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(a)
+
+    dropped = len(articles) - len(deduped)
+
+    # Split into dated and undated; sort dated newest-first, append undated shuffled
+    dated = [a for a in deduped if a["_ts"] > 0]
+    undated = [a for a in deduped if a["_ts"] == 0]
+    dated.sort(key=lambda a: a["_ts"], reverse=True)
+    random.shuffle(undated)
+    final = (dated + undated)[:_NEWS_FINAL_CAP]
+    for a in final:
+        a.pop("_ts", None)
+
+    log.info(f"NEWS fetched {len(final)} articles ({dropped} dups dropped) from {len(feeds)} feeds")
+
+    # Don't poison cache with empty result — let next call retry sooner
+    if final:
+        news_cache["articles"] = final
+        news_cache["lastFetch"] = now
+    else:
+        log.warning("NEWS empty result — keeping previous cache, not advancing lastFetch")
+    return final
+
+def news_refresh_loop():
+    """Background thread keeping news cache warm based on configured refreshInterval."""
+    while True:
+        try:
+            cfg = load_config()
+            interval = max(int(cfg.get("news", {}).get("refreshInterval", 15)), 1)
+            feeds = cfg.get("news", {}).get("feeds", [])
+            if cfg.get("news", {}).get("show", True) and feeds:
+                fetch_news(feeds)
+            time.sleep(interval * 60)
+        except Exception as e:
+            log.error(f"NEWS refresh loop error (will retry in 60s): {e}")
+            time.sleep(60)
+
+threading.Thread(target=news_refresh_loop, daemon=True).start()
 
 # ==================== GOOGLE CALENDAR ====================
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
@@ -839,10 +927,25 @@ def get_stocks():
         except Exception as e:
             log.warning(f"STOCKS error fetching {feed_url}: {e}")
             continue
-    random.shuffle(articles)
-    stock_cache["articles"] = articles[:30]
-    stock_cache["lastFetch"] = time.time()
-    return jsonify({"articles": articles[:30]})
+
+    # Dedup by normalized title
+    seen = set()
+    deduped = []
+    for a in articles:
+        key = _normalize_title(a["title"])
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(a)
+
+    random.shuffle(deduped)
+    final = deduped[:30]
+    if final:
+        stock_cache["articles"] = final
+        stock_cache["lastFetch"] = time.time()
+    else:
+        log.warning("STOCKS empty result — keeping previous cache")
+    return jsonify({"articles": final})
 
 @app.route("/api/calendar")
 def get_calendar():
