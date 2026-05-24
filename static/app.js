@@ -4,6 +4,9 @@
 let config = {};
 let photos = [];
 let currentIndex = 0;
+let nextStartIndex = 0; // computed by renderSlide; where nextSlide should jump to so portrait-pair partners are not re-shown
+let slideHistory = []; // recent indices we've shown, so prev can jump back correctly across portrait pairs
+const SLIDE_HISTORY_MAX = 50;
 let slideshowTimer = null;
 let overlaysVisible = true;
 let cycleTimer = null;
@@ -107,18 +110,25 @@ function renderSlide(container, index) {
     const pairPortraits = config.slideshow.pairPortraits;
     const photo = photos[index % photos.length];
 
+    // Default: next slide advances by 1
+    nextStartIndex = index + 1;
+
     if (pairPortraits && photo.orientation === "portrait") {
-        // Find next portrait
-        let nextIdx = (index + 1) % photos.length;
+        // Find next portrait and remember its index so nextSlide skips past it
         let partner = null;
+        let partnerOffset = 0;
         for (let i = 0; i < photos.length; i++) {
-            const candidate = photos[(index + 1 + i) % photos.length];
+            const candidateIdx = (index + 1 + i) % photos.length;
+            const candidate = photos[candidateIdx];
             if (candidate.orientation === "portrait" && candidate.id !== photo.id) {
                 partner = candidate;
+                partnerOffset = i + 1;
                 break;
             }
         }
         if (partner) {
+            // Skip past the partner on next advance so it doesn't reappear
+            nextStartIndex = index + partnerOffset + 1;
             const pair = document.createElement("div");
             pair.className = "portrait-pair";
             // Blurred backgrounds for each half
@@ -206,7 +216,21 @@ function updatePhotoInfo(name, meta) {
 function nextSlide() {
     const cur = document.getElementById("slide-current");
     const nxt = document.getElementById("slide-next");
-    currentIndex++;
+    // Remember where we were so prevSlide can jump back across portrait pairs
+    slideHistory.push(currentIndex);
+    if (slideHistory.length > SLIDE_HISTORY_MAX) slideHistory.shift();
+    // nextStartIndex was set by the last renderSlide; respect it so portrait
+    // pairs advance past their partner instead of re-showing it on the left
+    const prev = currentIndex;
+    currentIndex = nextStartIndex > currentIndex ? nextStartIndex : currentIndex + 1;
+    // Reshuffle when we wrap so the deck doesn't repeat the same order
+    if (photos.length > 0 && Math.floor(currentIndex / photos.length) > Math.floor(prev / photos.length)) {
+        if (config.slideshow.shuffle) {
+            shuffleArray(photos);
+            currentIndex = 0;
+            slideHistory = [];
+        }
+    }
     renderSlide(nxt, currentIndex);
     // Crossfade: show next, then after transition completes, move content to current
     nxt.classList.add("active");
@@ -225,6 +249,32 @@ function nextSlide() {
         });
         // If we went from video to photo, resume YouTube
         if (hadVideo && newVideos.length === 0) resumeYTAfterInterruption();
+        cur.classList.add("active");
+        nxt.classList.remove("active");
+        nxt.innerHTML = "";
+    }, 1400);
+    startProgress();
+}
+
+function prevSlide() {
+    if (photos.length === 0) return;
+    const cur = document.getElementById("slide-current");
+    const nxt = document.getElementById("slide-next");
+    if (slideHistory.length > 0) {
+        currentIndex = slideHistory.pop();
+    } else {
+        currentIndex = (currentIndex - 1 + photos.length) % photos.length;
+    }
+    renderSlide(nxt, currentIndex);
+    nxt.classList.add("active");
+    cur.classList.remove("active");
+    setTimeout(() => {
+        cur.querySelectorAll("video").forEach(v => { v.pause(); v.src = ""; });
+        cur.innerHTML = nxt.innerHTML;
+        cur.querySelectorAll("video").forEach(v => {
+            v.muted = config.slideshow.muteVideo !== false;
+            v.play();
+        });
         cur.classList.add("active");
         nxt.classList.remove("active");
         nxt.innerHTML = "";
@@ -989,9 +1039,8 @@ function setupPlaybackBar() {
     // Previous
     document.getElementById("pb-prev").addEventListener("click", e => {
         e.stopPropagation();
-        if (currentIndex > 0) currentIndex -= 2; else currentIndex = photos.length - 2;
         if (slideshowPaused) { slideshowPaused = false; document.querySelector("#pb-playpause i").className = "fas fa-pause"; }
-        nextSlide(); clearInterval(slideshowTimer); startSlideshow();
+        prevSlide(); clearInterval(slideshowTimer); startSlideshow();
     });
 
     // Mute toggle — system mute via API
@@ -1135,6 +1184,7 @@ function setupPanels() {
             case "m": startVoiceCommand(); break;
             case "escape": closeAll(); break;
             case "arrowright": nextSlide(); clearInterval(slideshowTimer); startSlideshow(); break;
+            case "arrowleft": prevSlide(); clearInterval(slideshowTimer); startSlideshow(); break;
         }
     });
 
@@ -2478,8 +2528,7 @@ function executeVoiceAction(result) {
             nextSlide(); clearInterval(slideshowTimer); startSlideshow();
             break;
         case "prev_photo":
-            if (currentIndex > 0) currentIndex -= 2; else currentIndex = photos.length - 2;
-            nextSlide(); clearInterval(slideshowTimer); startSlideshow();
+            prevSlide(); clearInterval(slideshowTimer); startSlideshow();
             break;
         case "pause_slideshow":
             slideshowPaused = true;
