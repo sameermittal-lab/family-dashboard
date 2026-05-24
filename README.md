@@ -82,22 +82,39 @@ Copy `config.example.json` to `config.json` to get started with defaults.
 
 ```
 family-dashboard/
-├── app.py                 # Flask backend (API, photo scanning, weather, voice, etc.)
+├── app.py                 # Flask backend served by waitress (8 threads)
 ├── config.json            # User configuration (gitignored)
 ├── config.example.json    # Template configuration
+├── credentials.json       # Google OAuth client (gitignored)
+├── token.json             # Google OAuth refresh token (gitignored)
+├── .secret_key            # Persisted Flask session key (gitignored)
+├── notes.json             # Family notes (gitignored)
 ├── requirements.txt       # Python dependencies
 ├── start.bat              # Windows launcher with auto-restart
 ├── setup.bat              # One-time Windows setup (deps + auto-start)
+├── CLAUDE.md              # Onboarding notes for AI coding agents
+├── CHANGELOG.md           # User-facing change history
 ├── static/
-│   ├── app.js             # Frontend application (~2400 lines)
+│   ├── app.js             # Frontend application (~2.5k lines)
 │   └── styles.css         # UI styles (frosted glass theme)
 ├── templates/
 │   ├── index.html         # Main dashboard
 │   └── remote.html        # Phone remote control
 ├── docs/
-│   └── documentation.html # Detailed documentation
-└── logs/                  # Auto-created, rotating log files
+│   └── documentation.html # User-facing HTML documentation
+├── cache/                 # Photo manifest + transcoded HEIC/RAW jpegs
+└── logs/                  # Rotating log files (5 MB × 3)
 ```
+
+**Server**: production runs under [waitress](https://docs.pylonsproject.org/projects/waitress/) — a pure-Python WSGI server that handles concurrent requests, recovers cleanly from socket errors, and works identically on Windows/Mac/Linux. Falls back to the Flask dev server if waitress is not installed.
+
+**Background threads**:
+- Photo scanner — incremental rescan based on `photos.scanInterval`
+- News refresher — keeps the RSS cache warm regardless of frontend polling
+
+**Concurrency safety**: shared state (`photo_manifest`, `voice_history`, `notes.json`) is guarded by per-resource locks. Background-thread crashes are caught by `threading.excepthook` and logged at CRITICAL.
+
+For agent / contributor onboarding details — locks, conventions, gotchas — see `CLAUDE.md`.
 
 ## Logging
 
