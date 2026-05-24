@@ -1240,12 +1240,24 @@ def network_status():
 
 # ==================== SYSTEM VOLUME ====================
 def _get_volume_interface():
-    """Get Windows audio endpoint volume interface using pycaw."""
+    """Get Windows audio endpoint volume interface using pycaw.
+
+    pycaw versions differ: older returns the raw IMMDevice (with .Activate),
+    newer returns an AudioDevice wrapper exposing the IMMDevice on ._dev.
+    """
     from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
     from ctypes import cast, POINTER
     from comtypes import CLSCTX_ALL
     speakers = AudioUtilities.GetSpeakers()
-    interface = speakers.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+    # Walk to the object that actually has .Activate
+    target = speakers
+    if not hasattr(target, "Activate"):
+        for attr in ("_dev", "iunknown"):
+            inner = getattr(target, attr, None)
+            if inner is not None and hasattr(inner, "Activate"):
+                target = inner
+                break
+    interface = target.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
     return cast(interface, POINTER(IAudioEndpointVolume))
 
 def _with_volume(fn):
